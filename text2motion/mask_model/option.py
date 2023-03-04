@@ -8,12 +8,7 @@ import torch
 import torch.distributed as dist
 import numpy as np
 
-def get_opt():
-    parser = TrainCompOptions()
-    opt = parser.parse()
-
-    opt.device = torch.device("cuda")
-    torch.autograd.set_detect_anomaly(True)
+def get_opt(opt):
 
     opt.save_root = pjoin(opt.checkpoints_dir, opt.dataset_name, opt.name)
     opt.model_dir = pjoin(opt.save_root, 'model')

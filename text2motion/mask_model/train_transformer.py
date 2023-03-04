@@ -26,16 +26,43 @@ from datasets import build_dataloader
 from mask_model.util import hinge_d_loss, vanilla_d_loss, MeanMask
 from utils.logs import UnifyLog
 from study.mylib import visualize_2motions
+import sys
+import glob
+import argparse
+from options.base_options import str2bool, init_save_folder
 
 if __name__ == '__main__':
-    parser = TrainCompOptions()
-    opt = parser.parse()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--num_epochs', type=int, default=300, help='num epoch')
+    parser.add_argument('--dataset_name', type=str, default='t2m', help='Dataset Name')
+    parser.add_argument("--data_parallel", action="store_true", help="Whether to use DP training")
+    parser.add_argument("--project", default="project_name")
+    parser.add_argument('--name_save', type=str, default="test", help='name_save of this trial')
+    parser.add_argument('--name', type=str, default="test", help='Name of this trial')
+    parser.add_argument('--debug', type=str2bool, nargs='?', default=True)
+    parser.add_argument("--gpu_id", type=int, nargs='+', default=(-1), help='GPU id')
+    opt = parser.parse_args()
+
+    save_path = sorted(list(glob.glob(f"checkpoints/{opt.dataset_name}/*_{opt.name_save}/")))[-1]
+
+    # mock from train opt
+    opt.checkpoints_dir = './checkpoints'
+    opt.is_train = True
+    opt.feat_bias = 25
+    opt.batch_size = 128
+    opt.distributed = False
+    opt.lr = 2e-4
     opt.device = torch.device("cuda")
-    torch.autograd.set_detect_anomaly(True)
+    opt.save_root = pjoin(opt.checkpoints_dir, opt.dataset_name, opt.name)
+    init_save_folder(opt)
+    torch.cuda.set_device(opt.gpu_id[0])
+
+    
+
 
     opt, dim_pose, kinematic_chain, mean, std, train_split_file = get_opt(opt)
     # [TODO] check "Text2MotionDataset" from Text2Motion, there are multiple version (V2, ...)
-    train_dataset = Text2MotionDataset(opt, mean, std, train_split_file, opt.times)
+    train_dataset = Text2MotionDataset(opt, mean, std, train_split_file, times=50)
     mean = np.load(pjoin(opt.meta_dir, 'mean.npy'))
     std = np.load(pjoin(opt.meta_dir, 'std.npy'))
 
@@ -55,6 +82,11 @@ if __name__ == '__main__':
                                     num_layers=4)
     quantize = VectorQuantizer2(n_e = 8192,
                                 e_dim = codebook_dim)
+    # encoder.load_state_dict(torch.load(save_path+'encoder.pth'))
+    # decoder.load_state_dict(torch.load(save_path+'decoder.pth'))
+    # quantize.load_state_dict(torch.load(save_path+'quantize.pth'))
+
+
     unify_log = UnifyLog(opt, encoder)
     if opt.data_parallel:
         encoder = MMDataParallel(encoder.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
@@ -84,8 +116,6 @@ if __name__ == '__main__':
     num_batch = len(train_loader)
     dis_start_epoch = 50
     print('num batch:', num_batch)
-
-    print(opt)
 
 
     for epoch in tqdm(range(cur_epoch, opt.num_epochs), desc="Epoch", position=0):
@@ -132,8 +162,8 @@ if __name__ == '__main__':
             # [TODO] mask the shorter frames for dis loss
             d_loss = 0
             if epoch > dis_start_epoch:
-                logits_real = discriminator(motions.detach(), src_mask=src_mask_attn) # [TODO] Can we use the same logits_real from GAN loss??? 
-                logits_fake = discriminator(recon.detach(), src_mask=src_mask_attn)
+                logits_real = discriminator(motions.detach(), src_mask=src_mask, length=length) # [TODO] Can we use the same logits_real from GAN loss??? 
+                logits_fake = discriminator(recon.detach(), src_mask=src_mask, length=length)
                 d_loss = disc_factor * vanilla_d_loss(logits_real, logits_fake)
 
                 opt_disc.zero_grad()

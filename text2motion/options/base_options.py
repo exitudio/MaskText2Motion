@@ -63,18 +63,6 @@ class BaseOptions():
         self.parser.add_argument("--project", default="project_name")
         self.parser.add_argument('--debug', type=str2bool, nargs='?', default=True)
         self.parser.add_argument('--corrupt', type=str, default='diffusion', help='diffusion or mask')
-
-    def init_save_folder(self):
-        self.opt.raw_name = self.opt.name
-        if self.opt.debug:
-            self.opt.name = 'TEMP'
-        else:
-            date = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            self.opt.name = f'{date}_{self.opt.name}'
-            save_folder = f"./{self.opt.checkpoints_dir}/{self.opt.dataset_name}/{self.opt.name}/"
-            os.makedirs(save_folder, exist_ok=False)
-            for f in ['datasets', 'experiments', 'models', 'options', 'tools', 'trainers', 'utils', 'mask_model']:
-                shutil.copytree(f, f'{save_folder}/{f}', ignore=shutil.ignore_patterns('__pycache__'))
             
 
     def parse(self):
@@ -82,7 +70,7 @@ class BaseOptions():
             self.initialize()
 
         self.opt = self.parser.parse_args()
-        self.init_save_folder()
+        init_save_folder(self.opt)
 
         self.opt.is_train = self.is_train
 
@@ -117,3 +105,17 @@ class BaseOptions():
         if world_size > 1:
             dist.barrier()
         return self.opt
+
+
+
+def init_save_folder(opt):
+    opt.raw_name = opt.name
+    if opt.debug:
+        opt.name = 'TEMP'
+    else:
+        date = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        opt.name = f'{date}_{opt.name}'
+        save_folder = f"./{opt.checkpoints_dir}/{opt.dataset_name}/{opt.name}/"
+        os.makedirs(save_folder, exist_ok=False)
+        for f in ['datasets', 'experiments', 'models', 'options', 'tools', 'trainers', 'utils', 'mask_model']:
+            shutil.copytree(f, f'{save_folder}/{f}', ignore=shutil.ignore_patterns('__pycache__'))
