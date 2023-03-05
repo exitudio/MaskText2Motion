@@ -25,7 +25,7 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     --num_epochs 300 \
     --dataset_name ${dataset_name} \
     --data_parallel \
-    --project MD_vqgan \
+    --project MD_vqtransformer \
     --name_save ${name_save} \
     --name ${name} \
     --debug ${debug} \

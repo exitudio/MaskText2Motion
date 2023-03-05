@@ -56,7 +56,7 @@ class VectorQuantizer2(nn.Module):
         # reshape back to match original input shape
         # z_q = rearrange(z_q, 'b h w c -> b c h w').contiguous()
 
-        return z_q
+        return z_q, min_encoding_indices
 
     # [INFO] use in cond_transformer
     def get_codebook_entry(self, indices, shape):

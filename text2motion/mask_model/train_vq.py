@@ -31,7 +31,7 @@ if __name__ == '__main__':
     parser = TrainCompOptions()
     opt = parser.parse()
     opt.device = torch.device("cuda")
-    torch.autograd.set_detect_anomaly(True)
+    # torch.autograd.set_detect_anomaly(True)
 
     opt, dim_pose, kinematic_chain, mean, std, train_split_file = get_opt(opt)
     # [TODO] check "Text2MotionDataset" from Text2Motion, there are multiple version (V2, ...)
@@ -95,13 +95,12 @@ if __name__ == '__main__':
             B, T = motions.shape[:2]
             length = torch.LongTensor([min(T, m_len) for m_len in  m_lens]).to(opt.device)
             src_mask = generate_src_mask(T, length).to(motions.device).unsqueeze(-1)
-            B, N, _ = motions.shape
             num_heads = 8
-            src_mask_attn = src_mask.view(B, 1, 1, N).repeat(1, num_heads, N, 1)
+            src_mask_attn = src_mask.view(B, 1, 1, T).repeat(1, num_heads, T, 1)
             mean_mask = MeanMask(src_mask, dim_pose)
 
             z = encoder(motions, src_mask=src_mask_attn)
-            z_q = quantize(z) * src_mask
+            z_q = quantize(z)[0] * src_mask
             qloss = mean_mask.mean((z_q.detach()-z)**2 * src_mask) + 0.25 * \
                             mean_mask.mean((z_q - z.detach()) ** 2 * src_mask)
             # preserve gradients
@@ -120,7 +119,7 @@ if __name__ == '__main__':
             if epoch > dis_start_epoch:
                 logits_fake = discriminator(recon, src_mask=src_mask_attn)
                 g_loss = -mean_mask.mean(logits_fake)
-                d_weight = .5 # [TODO] skip calculate_adaptive_weight
+                d_weight = 1 # [TODO] skip calculate_adaptive_weight
                 disc_factor = 1 # [TODO] adopt_weight
                 loss += d_weight * disc_factor * g_loss 
             

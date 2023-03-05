@@ -31,6 +31,10 @@ import glob
 import argparse
 from options.base_options import str2bool, init_save_folder
 
+from mask_model.mingpt import GPT
+from mask_model.util import configure_optimizers
+import torch.nn.functional as F
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--num_epochs', type=int, default=300, help='num epoch')
@@ -51,8 +55,9 @@ if __name__ == '__main__':
     opt.feat_bias = 25
     opt.batch_size = 128
     opt.distributed = False
-    opt.lr = 2e-4
+    opt.lr = 4.5e-06
     opt.device = torch.device("cuda")
+    opt.name = f'{opt.name}_{opt.name_save}'
     opt.save_root = pjoin(opt.checkpoints_dir, opt.dataset_name, opt.name)
     init_save_folder(opt)
     torch.cuda.set_device(opt.gpu_id[0])
@@ -72,27 +77,30 @@ if __name__ == '__main__':
                                     output_feats=codebook_dim, 
                                     latent_dim=latent_dim, 
                                     num_layers=8)
-    decoder = MotionTransformerOnly2(input_feats=codebook_dim, 
-                                    output_feats=dim_pose, 
-                                    latent_dim=latent_dim, 
-                                    num_layers=8)
-    discriminator = MotionTransformerOnly2(input_feats=dim_pose, 
-                                    output_feats=1, 
-                                    latent_dim=latent_dim, 
-                                    num_layers=4)
+    # decoder = MotionTransformerOnly2(input_feats=codebook_dim, 
+    #                                 output_feats=dim_pose, 
+    #                                 latent_dim=latent_dim, 
+    #                                 num_layers=8)
+    # discriminator = MotionTransformerOnly2(input_feats=dim_pose, 
+    #                                 output_feats=1, 
+    #                                 latent_dim=latent_dim, 
+    #                                 num_layers=4)
     quantize = VectorQuantizer2(n_e = 8192,
                                 e_dim = codebook_dim)
-    # encoder.load_state_dict(torch.load(save_path+'encoder.pth'))
+    # [INFO] VQGAN params: GPT(vocab_size=1024, block_size=512, n_layer=24, n_head=16, n_embd=1024)
+    transformer = GPT(vocab_size=8192, block_size=196, n_layer=8, n_head=8, n_embd=256)
+    encoder.load_state_dict(torch.load(save_path+'encoder.pth'))
     # decoder.load_state_dict(torch.load(save_path+'decoder.pth'))
-    # quantize.load_state_dict(torch.load(save_path+'quantize.pth'))
+    quantize.load_state_dict(torch.load(save_path+'quantize.pth'))
 
 
     unify_log = UnifyLog(opt, encoder)
     if opt.data_parallel:
         encoder = MMDataParallel(encoder.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
-        decoder = MMDataParallel(decoder.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
-        discriminator = MMDataParallel(discriminator.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
+        # decoder = MMDataParallel(decoder.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
+        # discriminator = MMDataParallel(discriminator.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
         quantize = MMDataParallel(quantize.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
+        transformer = MMDataParallel(transformer.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
 
     train_loader = build_dataloader(
         train_dataset,
@@ -103,18 +111,12 @@ if __name__ == '__main__':
         dist=opt.distributed,
         num_gpus=len(opt.gpu_id))
     
-    # [TODO] VQGAN uses lr = 4.5e-6
-    opt_ae = torch.optim.Adam(list(encoder.parameters())+
-                                list(decoder.parameters())+
-                                list(quantize.parameters()),
-                                lr=opt.lr, betas=(0.5, 0.9))
-    opt_disc = torch.optim.Adam(discriminator.parameters(),
-                                lr=opt.lr, betas=(0.5, 0.9))
+    lr =  len(opt.gpu_id) * opt.batch_size * opt.lr
+    optim = configure_optimizers(transformer.module if hasattr(transformer, 'module') else transformer, lr)
     
     cur_epoch = 0
-    encoder.train(), decoder.train(), discriminator.train(), quantize.train()
+    encoder.eval(), quantize.eval(), transformer.train() # decoder.eval(), 
     num_batch = len(train_loader)
-    dis_start_epoch = 50
     print('num batch:', num_batch)
 
 
@@ -125,80 +127,29 @@ if __name__ == '__main__':
             B, T = motions.shape[:2]
             length = torch.LongTensor([min(T, m_len) for m_len in  m_lens]).to(opt.device)
             src_mask = generate_src_mask(T, length).to(motions.device).unsqueeze(-1)
-            B, N, _ = motions.shape
             num_heads = 8
-            src_mask_attn = src_mask.view(B, 1, 1, N).repeat(1, num_heads, N, 1)
+            src_mask_attn = src_mask.view(B, 1, 1, T).repeat(1, num_heads, T, 1)
             mean_mask = MeanMask(src_mask, dim_pose)
 
             z = encoder(motions, src_mask=src_mask_attn)
-            z_q = quantize(z) * src_mask
-            qloss = mean_mask.mean((z_q.detach()-z)**2 * src_mask) + 0.25 * \
-                            mean_mask.mean((z_q - z.detach()) ** 2 * src_mask)
-            # preserve gradients
-            z_q = z + (z_q - z).detach()
-            recon = decoder(z_q, src_mask=src_mask_attn)
+            z_q, indices = quantize(z)
+            z_indices = indices.view(z_q.shape[0], -1)
 
-            ##### GAN loss
-            # [TODO] mask the shorter frames for gan loss
-            # [TODO] skip perceptual loss (LPIPS)
-            rec_loss = mean_mask.mean((motions - recon) ** 2 * src_mask)
-            loss = rec_loss + qloss
-            
-            # [TODO] clarify: discriminator of VQGAN output only 1x30x30 from input 3x256x256
-            # [TODO] g_loss is negative. Probably normal??
-            g_loss = 0
-            if epoch > dis_start_epoch:
-                logits_fake = discriminator(recon, src_mask=src_mask_attn)
-                g_loss = -mean_mask.mean(logits_fake)
-                d_weight = .5 # [TODO] skip calculate_adaptive_weight
-                disc_factor = 1 # [TODO] adopt_weight
-                loss += d_weight * disc_factor * g_loss 
-            
-            opt_ae.zero_grad()
+            c_indices = torch.zeros(B, 1, dtype=z_indices.dtype).to(z_indices.device)
+            cz_indices = torch.cat((c_indices, z_indices), dim=1)
+
+            logits, _ = transformer(cz_indices[:, :-1])
+
+            loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), z_indices.reshape(-1))
+
+            optim.zero_grad()
             loss.backward()
-            opt_ae.step()
-            
-            ##### Discriminator loss
-            # [TODO] mask the shorter frames for dis loss
-            d_loss = 0
-            if epoch > dis_start_epoch:
-                logits_real = discriminator(motions.detach(), src_mask=src_mask, length=length) # [TODO] Can we use the same logits_real from GAN loss??? 
-                logits_fake = discriminator(recon.detach(), src_mask=src_mask, length=length)
-                d_loss = disc_factor * vanilla_d_loss(logits_real, logits_fake)
+            optim.step()
 
-                opt_disc.zero_grad()
-                d_loss.backward()
-                opt_disc.step()
+            unify_log.log({'transformer_loss:':loss }, step=epoch*num_batch + i)
 
-            unify_log.log({'rec_loss:':rec_loss, 
-                           'g_loss':g_loss, 
-                           'qloss':qloss, 
-                           'Dis loss': d_loss
-                           }, step=epoch*num_batch + i)
-
-        motion1 = motions[0].detach().cpu().numpy()
-        motion2 = recon[0].detach().cpu().numpy()
-        visualize_2motions(motion1, motion2, std, mean, opt.dataset_name, length[0], 
-                           save_path=f'{opt.save_root}/epoch_{epoch}.html')
-        unify_log.save_model(encoder, 'encoder.pth')
-        unify_log.save_model(quantize, 'quantize.pth')
-        unify_log.save_model(decoder, 'decoder.pth')
-        unify_log.save_model(discriminator, 'discriminator.pth')
-
-    # # Visualize
-    # opt.is_train = False
-    # trainer.eval_mode()
-    # # for debugging
-    # # trainer.load('/home/epinyoan/git/MotionDiffuse/text2motion/checkpoints/kit/temp2/latest.tar')
-    # with torch.no_grad():
-    #     caption = ["a person is jumping"]
-    #     m_lens = torch.LongTensor([60]).cuda()
-    #     pred_motions = trainer.generate(caption, m_lens, dim_pose)
-    #     motion = pred_motions[0].cpu().numpy()
-    #     motion = motion * std + mean
-    #     title = caption[0] + " #%d" % motion.shape[0]
-    #     joint = recover_from_ric(torch.from_numpy(motion).float(), opt.joints_num).numpy()
-    #     if opt.dataset_name == 'kit':
-    #         joint = joint/1000
-
-    #     plot_3d_motion(f'{opt.save_root}/{title}.gif', kinematic_chain, joint, title=title, fps=20)
+        # motion1 = motions[0].detach().cpu().numpy()
+        # motion2 = recon[0].detach().cpu().numpy()
+        # visualize_2motions(motion1, motion2, std, mean, opt.dataset_name, length[0], 
+        #                 save_path=f'{opt.save_root}/epoch_{epoch}.html')
+        # unify_log.save_model(transformer, 'transformer.pth')
