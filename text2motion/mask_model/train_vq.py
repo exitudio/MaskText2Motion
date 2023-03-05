@@ -139,15 +139,16 @@ if __name__ == '__main__':
                 d_loss.backward()
                 opt_disc.step()
 
-            unify_log.log({'rec_loss:':rec_loss, 
-                           'g_loss':g_loss, 
-                           'qloss':qloss, 
-                           'Dis loss': d_loss
-                           }, step=epoch*num_batch + i)
+            if i%200==0:
+                unify_log.log({'rec_loss:':rec_loss, 
+                            'g_loss':g_loss, 
+                            'qloss':qloss, 
+                            'Dis loss': d_loss
+                            }, step=epoch*num_batch + i)
 
         motion1 = motions[0].detach().cpu().numpy()
         motion2 = recon[0].detach().cpu().numpy()
-        visualize_2motions(motion1, motion2, std, mean, opt.dataset_name, length[0], 
+        visualize_2motions(motion1, std, mean, opt.dataset_name, length[0], motion2, 
                            save_path=f'{opt.save_root}/epoch_{epoch}.html')
         unify_log.save_model(encoder, 'encoder.pth')
         unify_log.save_model(quantize, 'quantize.pth')

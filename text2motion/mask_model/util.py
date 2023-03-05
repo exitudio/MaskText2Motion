@@ -66,3 +66,37 @@ def configure_optimizers(transformer, learning_rate):
         ]
         optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=(0.9, 0.95))
         return optimizer
+
+def top_k_logits(logits, k):
+    v, ix = torch.topk(logits, k)
+    out = logits.clone()
+    out[out < v[..., [-1]]] = -float('Inf')
+    return out
+
+def generate_samples(transformer, device, num_samples=1, steps = 40):
+    c_indices = torch.zeros(num_samples, 1, dtype=torch.int64).to(device)
+    top_k = 100
+    sample = True
+
+    x = c_indices.clone()
+    for k in range(steps):
+        logits, _ = transformer(x)
+        logits = logits[:, -1, :]
+        # optionally crop probabilities to only the top k options
+        if top_k is not None:
+            logits = top_k_logits(logits, top_k)
+        if sample:
+            # apply softmax to convert to probabilities
+            probs = F.softmax(logits, dim=-1)
+            # sample from the distribution or take the most likely
+            ix = torch.multinomial(probs, num_samples=1)
+        else:
+            _, ix = torch.topk(logits, k=1, dim=-1)
+        x = torch.cat((x, ix), dim=1)
+    x = x[:, c_indices.shape[1]:] # remove condition
+    return x
+
+def get_model(model):
+    if hasattr(model, 'module'):
+        return model.module
+    return model

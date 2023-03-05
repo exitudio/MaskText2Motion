@@ -256,19 +256,25 @@ def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, save_path=N
     if save_path is not None:
         fig.write_html(save_path)
 
-def visualize_2motions(motion1, motion2, std, mean, dataset_name, length, save_path=None):
+def visualize_2motions(motion1, std, mean, dataset_name, length, motion2=None, save_path=None):
     motion1 = motion1 * std + mean
-    motion2 = motion2 * std + mean
+    if motion2 is not None:
+        motion2 = motion2 * std + mean
     if dataset_name == 'kit':
         first_total_standard = 60
-        bone_link = kit_kit_bone
+        bone_link = kit_bone
+        if motion2 is not None:
+            bone_link = kit_kit_bone
         joints_num = 21
         scale = 1/1000
     else:
         raise NameError('dataset:' + dataset_name)
     joint1 = recover_from_ric(torch.from_numpy(motion1).float(), joints_num).numpy()
-    joint2 = recover_from_ric(torch.from_numpy(motion2).float(), joints_num).numpy()
-    joint_original_forward = np.concatenate((joint1, joint2), axis=1)
+    if motion2 is not None:
+        joint2 = recover_from_ric(torch.from_numpy(motion2).float(), joints_num).numpy()
+        joint_original_forward = np.concatenate((joint1, joint2), axis=1)
+    else:
+        joint_original_forward = joint1
     animate3d(joint_original_forward[:length]*scale, 
               BONE_LINK=bone_link, 
               first_total_standard=first_total_standard, 

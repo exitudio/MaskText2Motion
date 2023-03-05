@@ -141,7 +141,8 @@ class Attention(nn.Module):
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
 
-        attn[~src_mask] = float('-inf')
+        if src_mask is not None:
+            attn[~src_mask] = float('-inf')
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
@@ -196,7 +197,7 @@ class MotionTransformerOnly2(nn.Module):
         self.ln_out = nn.LayerNorm(latent_dim)
         self.out = zero_module(nn.Linear(latent_dim, output_feats))
 
-    def forward(self, x, src_mask):
+    def forward(self, x, src_mask=None):
         """
         x: B, T, D
         """

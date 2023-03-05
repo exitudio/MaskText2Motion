@@ -32,7 +32,7 @@ import argparse
 from options.base_options import str2bool, init_save_folder
 
 from mask_model.mingpt import GPT
-from mask_model.util import configure_optimizers
+from mask_model.util import configure_optimizers, generate_samples, get_model
 import torch.nn.functional as F
 
 if __name__ == '__main__':
@@ -77,10 +77,10 @@ if __name__ == '__main__':
                                     output_feats=codebook_dim, 
                                     latent_dim=latent_dim, 
                                     num_layers=8)
-    # decoder = MotionTransformerOnly2(input_feats=codebook_dim, 
-    #                                 output_feats=dim_pose, 
-    #                                 latent_dim=latent_dim, 
-    #                                 num_layers=8)
+    decoder = MotionTransformerOnly2(input_feats=codebook_dim, 
+                                    output_feats=dim_pose, 
+                                    latent_dim=latent_dim, 
+                                    num_layers=8)
     # discriminator = MotionTransformerOnly2(input_feats=dim_pose, 
     #                                 output_feats=1, 
     #                                 latent_dim=latent_dim, 
@@ -90,14 +90,14 @@ if __name__ == '__main__':
     # [INFO] VQGAN params: GPT(vocab_size=1024, block_size=512, n_layer=24, n_head=16, n_embd=1024)
     transformer = GPT(vocab_size=8192, block_size=196, n_layer=8, n_head=8, n_embd=256)
     encoder.load_state_dict(torch.load(save_path+'encoder.pth'))
-    # decoder.load_state_dict(torch.load(save_path+'decoder.pth'))
+    decoder.load_state_dict(torch.load(save_path+'decoder.pth'))
     quantize.load_state_dict(torch.load(save_path+'quantize.pth'))
 
 
     unify_log = UnifyLog(opt, encoder)
     if opt.data_parallel:
         encoder = MMDataParallel(encoder.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
-        # decoder = MMDataParallel(decoder.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
+        decoder = MMDataParallel(decoder.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
         # discriminator = MMDataParallel(discriminator.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
         quantize = MMDataParallel(quantize.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
         transformer = MMDataParallel(transformer.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
@@ -112,7 +112,7 @@ if __name__ == '__main__':
         num_gpus=len(opt.gpu_id))
     
     lr =  len(opt.gpu_id) * opt.batch_size * opt.lr
-    optim = configure_optimizers(transformer.module if hasattr(transformer, 'module') else transformer, lr)
+    optim = configure_optimizers(get_model(transformer), lr)
     
     cur_epoch = 0
     encoder.eval(), quantize.eval(), transformer.train() # decoder.eval(), 
@@ -146,8 +146,16 @@ if __name__ == '__main__':
             loss.backward()
             optim.step()
 
-            unify_log.log({'transformer_loss:':loss }, step=epoch*num_batch + i)
+            if i%200==0:
+                unify_log.log({'transformer_loss:':loss }, step=epoch*num_batch + i)
 
+        gen_indices = generate_samples(transformer, opt.device, steps=120)
+        x = get_model(quantize).embedding(gen_indices.reshape(-1))
+        x = x.reshape(*gen_indices.shape, -1)
+        x = decoder(x)
+        x = x[0].detach().cpu().numpy()
+        visualize_2motions(x, std, mean, opt.dataset_name, x.shape[0], 
+                            save_path=f'{opt.save_root}/epoch_{epoch}.html')
         # motion1 = motions[0].detach().cpu().numpy()
         # motion2 = recon[0].detach().cpu().numpy()
         # visualize_2motions(motion1, motion2, std, mean, opt.dataset_name, length[0], 
