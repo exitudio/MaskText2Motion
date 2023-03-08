@@ -149,8 +149,15 @@ class LinearTemporalCrossAttention(nn.Module):
         key = F.softmax(key.view(B, N, H, -1), dim=1)
         # B, N, H, HD
         value = self.value(self.text_norm(xf)).view(B, N, H, -1)
+        # [INFO]
+        # k [2, [77], 8, 64] b n h d
+        # v [2, [77], 8, 64] b n h d
         # B, H, HD, HD
         attention = torch.einsum('bnhd,bnhl->bhdl', key, value)
+        # [INFO]
+        # attn [2, 8, [64], 64] b h d d
+        # q [2, 50, 8, [64]] b m h d
+        # y(bf view) [2, 50, 8, 64] b n h d
         y = torch.einsum('bnhd,bhdl->bnhl', query, attention).reshape(B, T, D)
         y = x + self.proj_out(y, emb)
         return y
@@ -380,7 +387,7 @@ class MotionTransformer(nn.Module):
         
     def encode_text(self, text, device):
         with torch.no_grad():
-            # [info] token of text.shape = [b, 77]. The tokens after the text input is "0". "<|startoftext|>" and "<|endoftext|>" are added. The unknow words "asldfjh" takes more than 1 tokens.
+            # [info] token of text.shape = [b, 77]. The tokens after the text input is padded by "0". "<|startoftext|>" and "<|endoftext|>" are added. The unknow words "asldfjh" takes more than 1 tokens.
             text = clip.tokenize(text, truncate=True).to(device)
             x = self.clip.token_embedding(text).type(self.clip.dtype)  # [batch_size, n_ctx, d_model]
 
@@ -395,6 +402,7 @@ class MotionTransformer(nn.Module):
         xf_out = self.text_ln(xf_out)
         # [info] select xf_out by the max text token 
         # xf_out[text.argmax(dim=-1), torch.arange(xf_out.shape[1])].shape = [b, text_latent_dim]
+        # text.argmax(dim=-1) is a trick to get index of "<|endoftext|>"
         xf_proj = self.text_proj(xf_out[text.argmax(dim=-1), torch.arange(xf_out.shape[1])])
         # B, T, D
         xf_out = xf_out.permute(1, 0, 2)

@@ -100,3 +100,20 @@ def get_model(model):
     if hasattr(model, 'module'):
         return model.module
     return model
+
+def get_latest_folder_by_name(directory_path, name):
+    import os
+    import re
+    from datetime import datetime
+    # Define the regular expression pattern to match the file names
+    pattern = r"\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}_%s$" % name
+
+    # Get the list of files in the directory that match the pattern
+    matching_files = [f for f in os.listdir(directory_path) if re.match(pattern, f)]
+
+    # Define a key function to extract the datetime from the file name
+    def get_datetime_from_filename(file_name):
+        return datetime.strptime(file_name.split("_")[0], "%Y-%m-%d-%H-%M-%S")
+
+    # Get the latest file based on the datetime in the file name
+    return f'{directory_path}/{max(matching_files, key=get_datetime_from_filename)}'

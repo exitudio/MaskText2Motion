@@ -32,7 +32,7 @@ import argparse
 from options.base_options import str2bool, init_save_folder
 
 from mask_model.mingpt import GPT
-from mask_model.util import configure_optimizers, generate_samples, get_model
+from mask_model.util import configure_optimizers, generate_samples, get_model, get_latest_folder_by_name
 import torch.nn.functional as F
 
 if __name__ == '__main__':
@@ -47,7 +47,7 @@ if __name__ == '__main__':
     parser.add_argument("--gpu_id", type=int, nargs='+', default=(-1), help='GPU id')
     opt = parser.parse_args()
 
-    save_path = sorted(list(glob.glob(f"checkpoints/{opt.dataset_name}/*_{opt.name_save}/")))[-1]
+    save_path = get_latest_folder_by_name(f"checkpoints/{opt.dataset_name}/", opt.name_save)
 
     # mock from train opt
     opt.checkpoints_dir = './checkpoints'
@@ -156,8 +156,4 @@ if __name__ == '__main__':
         x = x[0].detach().cpu().numpy()
         visualize_2motions(x, std, mean, opt.dataset_name, x.shape[0], 
                             save_path=f'{opt.save_root}/epoch_{epoch}.html')
-        # motion1 = motions[0].detach().cpu().numpy()
-        # motion2 = recon[0].detach().cpu().numpy()
-        # visualize_2motions(motion1, motion2, std, mean, opt.dataset_name, length[0], 
-        #                 save_path=f'{opt.save_root}/epoch_{epoch}.html')
-        # unify_log.save_model(transformer, 'transformer.pth')
+        unify_log.save_model(transformer, 'transformer.pth')
