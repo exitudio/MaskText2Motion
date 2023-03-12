@@ -18,8 +18,8 @@ from utils.motion_process import recover_from_ric
 
 from tqdm import tqdm
 
-from option import get_opt
-from motiontransformer import MotionTransformerOnly, MotionTransformerOnly2, generate_src_mask
+from mask_model.option import get_opt
+from mask_model.motiontransformer import MotionTransformerOnly, MotionTransformerOnly2, generate_src_mask
 from mask_model.quantize import VectorQuantizer2
 from torch.utils.data import DataLoader
 from datasets import build_dataloader
@@ -34,6 +34,43 @@ from options.base_options import str2bool, init_save_folder
 from mask_model.mingpt import GPT
 from mask_model.util import configure_optimizers, generate_samples, get_model, get_latest_folder_by_name
 import torch.nn.functional as F
+import torch.nn as nn
+import clip
+
+class TextEncoder(nn.Module):
+    def __init__(self, output_dim):
+        super().__init__()
+        clip_dim = 512
+        clip_version = 'ViT-B/32'
+        self.embed_text = nn.Linear(clip_dim, output_dim)
+
+        # load_and_freeze_clip 
+        self.clip_model, clip_preprocess = clip.load(clip_version, device='cpu',
+                                                jit=False)  # Must set jit=False for training
+        clip.model.convert_weights(
+            self.clip_model)  # Actually this line is unnecessary since clip by default already on float16
+
+        # Freeze CLIP weights
+        self.clip_model.eval()
+        for p in self.clip_model.parameters():
+            p.requires_grad = False
+
+    def forward(self, raw_text, cond_mask_prob=.1):
+        device = next(self.parameters()).device
+        default_context_length = 77
+        context_length = 20 + 2 # start_token + 20 + end_token
+        assert context_length < default_context_length
+        texts = clip.tokenize(raw_text, context_length=context_length, truncate=True).to(device) # [bs, context_length] # if n_tokens > context_length -> will truncate
+        zero_pad = torch.zeros([texts.shape[0], default_context_length-context_length], dtype=texts.dtype, device=texts.device)
+        texts = torch.cat([texts, zero_pad], dim=1)
+
+        # [TODO] MD: uses all seq, MDM uses only the highest token https://github.com/openai/CLIP/blob/a9b1bf5920416aaeaec965c25dd9e8f98c864f16/clip/model.py#L343
+        texts = self.clip_model.encode_text(texts).float()
+    
+        mask = torch.bernoulli(torch.ones(texts.shape[0], device=device) * cond_mask_prob).view(texts.shape[0], 1)  # 1-> use null_cond, 0-> use real cond
+        texts = texts * (1. - mask)
+        return self.embed_text(texts)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -47,7 +84,7 @@ if __name__ == '__main__':
     parser.add_argument("--gpu_id", type=int, nargs='+', default=(-1), help='GPU id')
     opt = parser.parse_args()
 
-    save_path = get_latest_folder_by_name(f"checkpoints/{opt.dataset_name}/", opt.name_save)
+    save_path = get_latest_folder_by_name(f"checkpoints/{opt.dataset_name}", opt.name_save)
 
     # mock from train opt
     opt.checkpoints_dir = './checkpoints'
@@ -73,6 +110,8 @@ if __name__ == '__main__':
 
     latent_dim = 256
     codebook_dim = 32
+    generator_dim = 256 # [TODO] decrease generator dim
+    text_emb_dim = 512
     encoder = MotionTransformerOnly2(input_feats=dim_pose, 
                                     output_feats=codebook_dim, 
                                     latent_dim=latent_dim, 
@@ -87,11 +126,13 @@ if __name__ == '__main__':
     #                                 num_layers=4)
     quantize = VectorQuantizer2(n_e = 8192,
                                 e_dim = codebook_dim)
+    textEncoder = TextEncoder(output_dim=text_emb_dim).to(opt.device)
     # [INFO] VQGAN params: GPT(vocab_size=1024, block_size=512, n_layer=24, n_head=16, n_embd=1024)
-    transformer = GPT(vocab_size=8192, block_size=196, n_layer=8, n_head=8, n_embd=256)
-    encoder.load_state_dict(torch.load(save_path+'encoder.pth'))
-    decoder.load_state_dict(torch.load(save_path+'decoder.pth'))
-    quantize.load_state_dict(torch.load(save_path+'quantize.pth'))
+    transformer = GPT(vocab_size=8192, block_size=196+int(text_emb_dim/generator_dim), 
+                      n_layer=8, n_head=8, n_embd=generator_dim)
+    encoder.load_state_dict(torch.load(save_path+'/encoder.pth'))
+    decoder.load_state_dict(torch.load(save_path+'/decoder.pth'))
+    quantize.load_state_dict(torch.load(save_path+'/quantize.pth'))
 
 
     unify_log = UnifyLog(opt, encoder)
@@ -138,7 +179,11 @@ if __name__ == '__main__':
             c_indices = torch.zeros(B, 1, dtype=z_indices.dtype).to(z_indices.device)
             cz_indices = torch.cat((c_indices, z_indices), dim=1)
 
-            logits, _ = transformer(cz_indices[:, :-1])
+            # text
+            text_emb = textEncoder(caption, cond_mask_prob=0.1)
+            text_emb = text_emb.view(text_emb.shape[0], -1, generator_dim)
+            logits, _ = transformer(z_indices, text_emb)
+            logits = logits[:, text_emb.shape[1]-1:-1]
 
             loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), z_indices.reshape(-1))
 
@@ -149,11 +194,14 @@ if __name__ == '__main__':
             if i%200==0:
                 unify_log.log({'transformer_loss:':loss }, step=epoch*num_batch + i)
 
-        gen_indices = generate_samples(transformer, opt.device, steps=120)
+        text_emb = textEncoder(caption[-1:], cond_mask_prob=0)
+        text_emb = text_emb.view(text_emb.shape[0], -1, generator_dim)
+        gen_indices = generate_samples(transformer, opt.device, text_emb, steps=m_lens[-1])
         x = get_model(quantize).embedding(gen_indices.reshape(-1))
         x = x.reshape(*gen_indices.shape, -1)
         x = decoder(x)
         x = x[0].detach().cpu().numpy()
         visualize_2motions(x, std, mean, opt.dataset_name, x.shape[0], 
-                            save_path=f'{opt.save_root}/epoch_{epoch}.html')
+                            save_path=f'{opt.save_root}/epoch_{epoch}_{caption[-1]}_{m_lens[-1]}.html')
         unify_log.save_model(transformer, 'transformer.pth')
+        unify_log.save_model(textEncoder, 'textEncoder.pth')
