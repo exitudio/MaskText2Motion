@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# screen -S temp ~/git/MotionDiffuse/text2motion/experiments/eval.sh
+# screen -S temp ~/git/MaskText2Motion/MotionDiffuse/text2motion/experiments/eval.sh
 
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate motiondiffuse
 
-cd /home/epinyoan/git/MotionDiffuse/text2motion
+cd /home/epinyoan/git/MaskText2Motion/MotionDiffuse/text2motion
 
 name='test5'
 dataset_name='kit'

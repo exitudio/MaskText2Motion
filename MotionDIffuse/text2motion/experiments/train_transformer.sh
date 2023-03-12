@@ -1,7 +1,7 @@
 #!/bin/sh
-# cd /users/epinyoan/git/MotionDiffuse/text2motion/experiments/
+# cd /users/epinyoan/git/MaskText2Motion/MotionDiffuse/text2motion/experiments/
 # sbatch train_transformer.sh
-# screen -S temp ~/git/MotionDiffuse/text2motion/experiments/train_transformer.sh
+# screen -S temp ~/git/MaskText2Motion/MotionDiffuse/text2motion/experiments/train_transformer.sh
 
 #SBATCH --job-name=job
 #SBATCH --partition=Leo
@@ -13,7 +13,7 @@
 #SBATCH --output=%x.%j.out
 
 . ~/miniconda3/etc/profile.d/conda.sh
-cd ~/git/MotionDiffuse/text2motion
+cd ~/git/MaskText2Motion/MotionDiffuse/text2motion
 conda activate motiondiffuse
 name_save='12_vqgan_poseformer'
 name='1_transformer'
