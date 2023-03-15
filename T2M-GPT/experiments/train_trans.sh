@@ -3,9 +3,9 @@
 # sbatch train_trans.sh
 # screen -S temp ~/git/MaskText2Motion/T2M-GPT/experiments/train_trans.sh
 
-#SBATCH --job-name=job
+#SBATCH --job-name=trans
 #SBATCH --partition=GPU
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --mem=64gb

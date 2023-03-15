@@ -16,6 +16,7 @@ from models.evaluator_wrapper import EvaluatorModelWrapper
 import warnings
 warnings.filterwarnings('ignore')
 from utils.word_vectorizer import WordVectorizer
+from tqdm import tqdm
 
 def update_lr_warm_up(optimizer, nb_iter, warm_up_iter, lr):
 
@@ -99,7 +100,7 @@ Loss = losses.ReConsLoss(args.recons_loss, args.nb_joints)
 ##### ------ warm-up ------- #####
 avg_recons, avg_perplexity, avg_commit = 0., 0., 0.
 
-for nb_iter in range(1, args.warm_up_iter):
+for nb_iter in tqdm(range(1, args.warm_up_iter)):
     
     optimizer, current_lr = update_lr_warm_up(optimizer, nb_iter, args.warm_up_iter, args.lr)
     
@@ -133,7 +134,7 @@ for nb_iter in range(1, args.warm_up_iter):
 avg_recons, avg_perplexity, avg_commit = 0., 0., 0.
 best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, net, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, eval_wrapper=eval_wrapper)
 
-for nb_iter in range(1, args.total_iter + 1):
+for nb_iter in tqdm(range(1, args.total_iter + 1)):
     
     gt_motion = next(train_loader_iter)
     gt_motion = gt_motion.cuda().float() # bs, nb_joints, joints_dim, seq_len

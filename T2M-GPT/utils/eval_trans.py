@@ -205,6 +205,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
                 cur_len = pred_pose.shape[1]
 
                 pred_len[k] = min(cur_len, seq)
+                # [INFO] pred_pose_eval is only 50 frames from pred_pose and all zeros for other
                 pred_pose_eval[k:k+1, :cur_len] = pred_pose[:, :seq]
 
                 if draw:
