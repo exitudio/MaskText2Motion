@@ -73,13 +73,14 @@ def top_k_logits(logits, k):
     out[out < v[..., [-1]]] = -float('Inf')
     return out
 
-def generate_samples(transformer, device, condition_emb=None, num_samples=1, steps = 40):
-    c_indices = torch.zeros(num_samples, 1 if condition_emb is None else 0, dtype=torch.int64).to(device)
-    top_k = 100
-    sample = True
+def generate_samples(transformer, device, condition_emb=None, num_samples=1, steps = 40, m_lens=-1):
+    c_indices = torch.zeros(condition_emb.shape[0], 1 if condition_emb is None else 0, dtype=torch.int64).to(device)
+    top_k = 100 # None #
+    sample = True # False #
 
     x = c_indices.clone()
-    for k in range(steps):
+    from tqdm import tqdm
+    for k in tqdm(range(steps)):
         logits, _ = transformer(x, condition_emb)
         logits = logits[:, -1, :]
         # optionally crop probabilities to only the top k options

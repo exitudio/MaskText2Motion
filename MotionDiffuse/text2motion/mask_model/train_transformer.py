@@ -162,6 +162,7 @@ if __name__ == '__main__':
 
 
     for epoch in tqdm(range(cur_epoch, opt.num_epochs), desc="Epoch", position=0):
+        transformer.train()
         for i, batch_data in enumerate(tqdm(train_loader, desc=" Num batch", position=1)):
             caption, motions, m_lens = batch_data
             motions = motions.detach().to(opt.device).float()
@@ -194,6 +195,7 @@ if __name__ == '__main__':
             if i%200==0:
                 unify_log.log({'transformer_loss:':loss }, step=epoch*num_batch + i)
 
+        transformer.eval()
         text_emb = textEncoder(caption[-1:], cond_mask_prob=0)
         text_emb = text_emb.view(text_emb.shape[0], -1, generator_dim)
         gen_indices = generate_samples(transformer, opt.device, text_emb, steps=m_lens[-1])
