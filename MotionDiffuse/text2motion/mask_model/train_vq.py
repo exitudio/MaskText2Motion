@@ -86,7 +86,7 @@ if __name__ == '__main__':
     print('num batch:', num_batch)
 
     print(opt)
-
+    os.makedirs(f'{opt.save_root}/html', exist_ok=False)
 
     for epoch in tqdm(range(cur_epoch, opt.num_epochs), desc="Epoch", position=0):
         for i, batch_data in enumerate(tqdm(train_loader, desc=" Num batch", position=1)):
@@ -149,7 +149,7 @@ if __name__ == '__main__':
         motion1 = motions[0].detach().cpu().numpy()
         motion2 = recon[0].detach().cpu().numpy()
         visualize_2motions(motion1, std, mean, opt.dataset_name, length[0], motion2, 
-                           save_path=f'{opt.save_root}/epoch_{epoch}.html')
+                           save_path=f'{opt.save_root}/html/epoch_{epoch}.html')
         unify_log.save_model(encoder, 'encoder.pth')
         unify_log.save_model(quantize, 'quantize.pth')
         unify_log.save_model(decoder, 'decoder.pth')

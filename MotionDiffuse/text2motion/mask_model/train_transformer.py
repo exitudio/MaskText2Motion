@@ -160,6 +160,7 @@ if __name__ == '__main__':
     num_batch = len(train_loader)
     print('num batch:', num_batch)
 
+    os.makedirs(f'{opt.save_root}/html', exist_ok=True)
 
     for epoch in tqdm(range(cur_epoch, opt.num_epochs), desc="Epoch", position=0):
         transformer.train()
@@ -177,8 +178,8 @@ if __name__ == '__main__':
             z_q, indices = quantize(z)
             z_indices = indices.view(z_q.shape[0], -1)
 
-            c_indices = torch.zeros(B, 1, dtype=z_indices.dtype).to(z_indices.device)
-            cz_indices = torch.cat((c_indices, z_indices), dim=1)
+            # c_indices = torch.zeros(B, 1, dtype=z_indices.dtype).to(z_indices.device)
+            # cz_indices = torch.cat((c_indices, z_indices), dim=1)
 
             # text
             text_emb = textEncoder(caption, cond_mask_prob=0.1)
@@ -204,6 +205,6 @@ if __name__ == '__main__':
         x = decoder(x)
         x = x[0].detach().cpu().numpy()
         visualize_2motions(x, std, mean, opt.dataset_name, x.shape[0], 
-                            save_path=f'{opt.save_root}/epoch_{epoch}_{caption[-1]}_{m_lens[-1]}.html')
+                            save_path=f'{opt.save_root}/html/epoch_{epoch}_{caption[-1]}_{m_lens[-1]}.html')
         unify_log.save_model(transformer, 'transformer.pth')
-        unify_log.save_model(textEncoder, 'textEncoder.pth')
+        unify_log.save_model(textEncoder.embed_text, 'textEncoder.embed_text.pth')
