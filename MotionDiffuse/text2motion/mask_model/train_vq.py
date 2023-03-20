@@ -86,7 +86,7 @@ if __name__ == '__main__':
     print('num batch:', num_batch)
 
     print(opt)
-    os.makedirs(f'{opt.save_root}/html', exist_ok=False)
+    os.makedirs(f'{opt.save_root}/html', exist_ok=True)
 
     for epoch in tqdm(range(cur_epoch, opt.num_epochs), desc="Epoch", position=0):
         for i, batch_data in enumerate(tqdm(train_loader, desc=" Num batch", position=1)):

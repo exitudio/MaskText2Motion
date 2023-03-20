@@ -14,6 +14,7 @@ from trainers import DDPMTrainer
 
 from os.path import join as pjoin
 import sys
+from mask_model.eval.inference import build_eval_model
 
 
 def build_models(opt, dim_pose):
@@ -245,8 +246,10 @@ if __name__ == '__main__':
     diversity_times = 300
     # replication_times = 1 # [INFO] moved
     batch_size = 32
-    opt_path = sys.argv[1]
-    dataset_opt_path = opt_path
+    vq_path = sys.argv[1]
+    transformer_path = sys.argv[2]
+    gpu_id = sys.argv[3]
+    opt_path = vq_path+'opt.txt'
 
     try:
         device_id = int(sys.argv[2])
@@ -255,13 +258,17 @@ if __name__ == '__main__':
     device = torch.device('cuda:%d' % device_id if torch.cuda.is_available() else 'cpu')
     torch.cuda.set_device(device_id)
 
-    gt_loader, gt_dataset = get_dataset_motion_loader(dataset_opt_path, batch_size, device)
-    wrapper_opt = get_opt(dataset_opt_path, device)
+    gt_loader, gt_dataset = get_dataset_motion_loader(opt_path, batch_size, device)
+    wrapper_opt = get_opt(opt_path, device)
     eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
 
     opt = get_opt(opt_path, device)
-    encoder = build_models(opt, opt.dim_pose)
-    trainer = DDPMTrainer(opt, encoder)
+    opt.debug = 't' # [INFO] mute w&b log
+    opt.gpu_id = list(eval(gpu_id)) # [0] # 
+
+    # encoder = build_models(opt, opt.dim_pose)
+    # trainer = DDPMTrainer(opt, encoder)
+    trainer = build_eval_model(opt, vq_path, transformer_path)
     eval_motion_loaders = {
         'text2motion': lambda: get_motion_loader(
             opt,
