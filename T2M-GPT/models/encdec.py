@@ -1,6 +1,15 @@
 import torch.nn as nn
 from models.resnet import Resnet1D
 
+class PrintModule(nn.Module):
+    def __init__(self, me=''):
+        super().__init__()
+        self.me = me
+
+    def forward(self, x):
+        print(self.me, x.shape)
+        return x
+    
 class Encoder(nn.Module):
     def __init__(self,
                  input_emb_width = 3,

@@ -84,6 +84,7 @@ class Text2MotionDataset(data.Dataset):
                                 flag = True
                                 text_data.append(text_dict)
                             else:
+                                # [INFO] Check with KIT, doesn't come here that mean f_tag & to_tag are 0.0 (tag for caption from-to frames)
                                 m_token_list_new = [tokens[int(f_tag*fps/unit_length) : int(to_tag*fps/unit_length)] for tokens in m_token_list if int(f_tag*fps/unit_length) < int(to_tag*fps/unit_length)]
 
                                 if len(m_token_list_new) == 0:
