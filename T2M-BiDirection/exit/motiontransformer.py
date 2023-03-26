@@ -1,7 +1,6 @@
 from torch import nn
 import torch
 import torch.nn.functional as F
-from models.transformer import zero_module
 import math
 from einops import rearrange, repeat
 
@@ -11,95 +10,14 @@ def generate_src_mask(T, length):
     B = len(length)
     mask = torch.arange(T).repeat(B, 1).to(length.device) < length.unsqueeze(-1)
     return mask
-    
-    src_mask = torch.ones(B, T)
-    for i in range(B):
-        for j in range(length[i], T):
-            src_mask[i, j] = 0
-    # print(torch.equal(src_mask, mask))
-    return src_mask
 
-
-class TemporalSelfAttention(nn.Module):
-
-    def __init__(self, latent_dim, num_head):
-        super().__init__()
-        self.num_head = num_head
-        self.norm = nn.LayerNorm(latent_dim)
-        self.query = nn.Linear(latent_dim, latent_dim)
-        self.key = nn.Linear(latent_dim, latent_dim)
-        self.value = nn.Linear(latent_dim, latent_dim)
-        self.proj_out = nn.Linear(latent_dim, latent_dim)
-
-    def forward(self, x, src_mask):
-        """
-        x: B, T, D
-        """
-        B, T, D = x.shape
-        H = self.num_head
-        # B, T, 1, D
-        query = self.query(self.norm(x)).unsqueeze(2)
-        # B, 1, T, D
-        key = self.key(self.norm(x)).unsqueeze(1)
-        query = query.view(B, T, H, -1)
-        key = key.view(B, T, H, -1)
-        # B, T, T, H
-        attention = torch.einsum(
-            'bnhd,bmhd->bnmh', query, key) / math.sqrt(D // H)
-        # [INFO] Mask in the wrong dimiension???
-        attention = attention + (1 - src_mask.float().unsqueeze(-1)) * -100000
-        weight = F.softmax(attention, dim=2)
-        value = self.value(self.norm(x)).view(B, T, H, -1)
-        y = torch.einsum('bnmh,bmhd->bnhd', weight, value).reshape(B, T, D)
-        y = x + self.proj_out(y)
-        return y
-
-
-class MotionTransformerOnly(nn.Module):
-    def __init__(self,
-                 input_feats,
-                 output_feats,
-                 num_frames=196,
-                 latent_dim=512,
-                 num_layers=8,
-                 num_heads=8,
-                 **kargs):
-        super().__init__()
-
-        self.sequence_embedding = nn.Parameter(
-            torch.randn(num_frames, latent_dim))
-
-        # Text Transformer
-
-        # Input Embedding
-        self.joint_embed = nn.Linear(input_feats, latent_dim)
-        self.temporal_decoder_blocks = nn.ModuleList([
-            # LinearTemporalSelfAttention(
-            TemporalSelfAttention(
-                latent_dim=latent_dim,
-                num_head=num_heads,
-            )for i in range(num_layers)])
-        # Output Module
-        self.ln_out = nn.LayerNorm(latent_dim)
-        self.out = zero_module(nn.Linear(latent_dim, output_feats))
-
-    def forward(self, x, src_mask, length=None):
-        """
-        x: B, T, D
-        """
-        B, T = x.shape[0], x.shape[1]
-
-        # B, T, latent_dim
-        h = self.joint_embed(x)
-        h = h + self.sequence_embedding.unsqueeze(0)[:, :T, :]
-
-        for module in self.temporal_decoder_blocks:
-            h = module(h, src_mask)
-
-        output = self.out(self.ln_out(h)).view(B, T, -1).contiguous()
-        output = output
-        return output
-
+def zero_module(module):
+    """
+    Zero out the parameters of a module and return it.
+    """
+    for p in module.parameters():
+        p.detach().zero_()
+    return module
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
@@ -195,7 +113,7 @@ class MotionTransformerOnly2(nn.Module):
                 num_heads=num_heads)
             for i in range(num_layers)])
         self.ln_out = nn.LayerNorm(latent_dim)
-        self.out = nn.Linear(latent_dim, output_feats)
+        self.out = zero_module(nn.Linear(latent_dim, output_feats))
 
     def forward(self, x, src_mask=None):
         """
@@ -211,5 +129,4 @@ class MotionTransformerOnly2(nn.Module):
             h = block(h, src_mask)
 
         output = self.out(self.ln_out(h)).view(B, T, -1).contiguous()
-        output = output
         return output

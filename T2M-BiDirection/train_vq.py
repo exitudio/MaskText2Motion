@@ -17,6 +17,9 @@ import warnings
 warnings.filterwarnings('ignore')
 from utils.word_vectorizer import WordVectorizer
 from tqdm import tqdm
+from exit.VQVAE_transformer import VQVAETransformer
+from exit.motiontransformer import generate_src_mask
+from exit.utils import get_model, visualize_2motions
 
 def update_lr_warm_up(optimizer, nb_iter, warm_up_iter, lr):
 
@@ -28,6 +31,7 @@ def update_lr_warm_up(optimizer, nb_iter, warm_up_iter, lr):
 
 ##### ---- Exp dirs ---- #####
 args = option_vq.get_args_parser()
+args.window_size = args.window_size if not args.vqvae_transformer else -1
 torch.manual_seed(args.seed)
 
 args.out_dir = os.path.join(args.out_dir, f'{args.exp_name}')
@@ -54,6 +58,7 @@ logger.info(f'Training on {args.dataname}, motions are with {args.nb_joints} joi
 
 wrapper_opt = get_opt(dataset_opt_path, torch.device('cuda'))
 eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
+os.makedirs(args.out_dir+'/html', exist_ok=True)
 
 
 ##### ---- Dataloader ---- #####
@@ -70,23 +75,15 @@ val_loader = dataset_TM_eval.DATALoader(args.dataname, False,
                                         unit_length=2**args.down_t)
 
 ##### ---- Network ---- #####
-net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
-                       args.nb_code,
-                       args.code_dim,
-                       args.output_emb_width,
-                       args.down_t,
-                       args.stride_t,
-                       args.width,
-                       args.depth,
-                       args.dilation_growth_rate,
-                       args.vq_act,
-                       args.vq_norm)
-
+net = VQVAETransformer(args).cuda()
 
 if args.resume_pth : 
     logger.info('loading checkpoint from {}'.format(args.resume_pth))
     ckpt = torch.load(args.resume_pth, map_location='cpu')
     net.load_state_dict(ckpt['net'], strict=True)
+
+if torch.cuda.device_count() > 1:
+    net = torch.nn.DataParallel(net)
 net.train()
 net.cuda()
 
@@ -95,7 +92,7 @@ optimizer = optim.AdamW(net.parameters(), lr=args.lr, betas=(0.9, 0.99), weight_
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_scheduler, gamma=args.gamma)
   
 
-Loss = losses.ReConsLoss(args.recons_loss, args.nb_joints)
+Loss = losses.ReConsLoss(args.recons_loss, args.nb_joints, True)
 
 ##### ------ warm-up ------- #####
 avg_recons, avg_perplexity, avg_commit = 0., 0., 0.
@@ -104,12 +101,16 @@ for nb_iter in tqdm(range(1, args.warm_up_iter)):
     
     optimizer, current_lr = update_lr_warm_up(optimizer, nb_iter, args.warm_up_iter, args.lr)
     
-    gt_motion = next(train_loader_iter)
-    gt_motion = gt_motion.cuda().float() # (bs, 64, dim)
+    gt_motion, m_length  = next(train_loader_iter)
+    gt_motion= gt_motion.cuda().float() # (bs, 64, dim)
 
-    pred_motion, loss_commit, perplexity = net(gt_motion)
-    loss_motion = Loss(pred_motion, gt_motion)
-    loss_vel = Loss.forward_vel(pred_motion, gt_motion)
+    src_mask = generate_src_mask(gt_motion.shape[1], m_length).to(gt_motion.device).unsqueeze(-1)
+    gt_motion = gt_motion * src_mask
+    pred_motion, perplexity, z, z_q = net(gt_motion, src_mask)
+    perplexity = perplexity.mean()
+    loss_commit = (z**2 - z_q.detach()**2).sum() / (src_mask.sum() * z.shape[-1])
+    loss_vel = Loss.forward_vel(pred_motion, gt_motion, src_mask)
+    loss_motion = Loss(pred_motion, gt_motion, src_mask)
     
     loss = loss_motion + args.commit * loss_commit + args.loss_vel * loss_vel
     
@@ -130,18 +131,22 @@ for nb_iter in tqdm(range(1, args.warm_up_iter)):
         
         avg_recons, avg_perplexity, avg_commit = 0., 0., 0.
 
-##### ---- Training ---- #####
-avg_recons, avg_perplexity, avg_commit = 0., 0., 0.
-best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, net, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, eval_wrapper=eval_wrapper)
+# ##### ---- Training ---- #####
+# avg_recons, avg_perplexity, avg_commit = 0., 0., 0.
+# best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, net, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, eval_wrapper=eval_wrapper)
 
 for nb_iter in tqdm(range(1, args.total_iter + 1)):
     
-    gt_motion = next(train_loader_iter)
+    gt_motion, m_length = next(train_loader_iter)
     gt_motion = gt_motion.cuda().float() # bs, nb_joints, joints_dim, seq_len
     
-    pred_motion, loss_commit, perplexity = net(gt_motion)
-    loss_motion = Loss(pred_motion, gt_motion)
-    loss_vel = Loss.forward_vel(pred_motion, gt_motion)
+    src_mask = generate_src_mask(gt_motion.shape[1], m_length).to(gt_motion.device).unsqueeze(-1)
+    gt_motion = gt_motion * src_mask
+    pred_motion, perplexity, z, z_q = net(gt_motion, src_mask)
+    perplexity = perplexity.mean()
+    loss_commit = (z**2 - z_q.detach()**2).sum() / (src_mask.sum() * z.shape[-1])
+    loss_vel = Loss.forward_vel(pred_motion, gt_motion, src_mask)
+    loss_motion = Loss(pred_motion, gt_motion, src_mask)
     
     loss = loss_motion + args.commit * loss_commit + args.loss_vel * loss_vel
     
@@ -168,5 +173,9 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
         avg_recons, avg_perplexity, avg_commit = 0., 0., 0.,
 
     if nb_iter % args.eval_iter==0 :
-        best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, net, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, eval_wrapper=eval_wrapper)
+        torch.save({'net' : net.state_dict()}, os.path.join(args.out_dir, 'net_last.pth'))
+        x = gt_motion[0].detach().cpu().numpy()
+        y = pred_motion[0].detach().cpu().numpy()
+        visualize_2motions(x, train_loader.dataset.std, train_loader.dataset.mean, args.dataname, m_length[0], y, save_path=f'{args.out_dir}/html/{str(nb_iter)}.html')
+    #     best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, net, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, eval_wrapper=eval_wrapper)
         

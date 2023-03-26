@@ -1,7 +1,7 @@
 #!/bin/sh
-# cd /users/epinyoan/git/MaskText2Motion/T2M-GPT/experiments/
-# sbatch train_vq.sh
-# screen -S temp ~/git/MaskText2Motion/T2M-GPT/experiments/train_vq.sh
+# cd /users/epinyoan/git/MaskText2Motion/T2M-BiDirection/exit/experiments/
+# sbatch train_vq_transformer.sh
+# screen -S temp ~/git/MaskText2Motion/T2M-BiDirection/exit/experiments/train_vq_transformer.sh
 
 #SBATCH --job-name=1GPU
 #SBATCH --partition=GPU
@@ -13,12 +13,12 @@
 #SBATCH --output=%x.%j.out
 
 . ~/miniconda3/etc/profile.d/conda.sh
-cd ~/git/MaskText2Motion/T2M-GPT
+cd ~/git/MaskText2Motion/T2M-BiDirection
 conda activate T2M-GPT
-name='2_VQVAE_1GPU'
+name='VQT-1'
 dataset_name='kit'
 debug='f'
-# export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=0,1
 python3 train_vq.py \
     --batch-size 256 \
     --lr 2e-4 \
@@ -34,6 +34,8 @@ python3 train_vq.py \
     --quantizer ema_reset \
     --loss-vel 0.5 \
     --recons-loss l1_smooth \
-    --exp-name ${name}
+    --exp-name ${name} \
+    --vqvae-transformer \
+    --code-dim 128
 
 sleep 500

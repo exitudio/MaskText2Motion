@@ -7,6 +7,7 @@ from scipy import linalg
 
 import visualization.plot_3d_global as plot_3d
 from utils.motion_process import recover_from_ric
+from exit.motiontransformer import generate_src_mask
 
 
 def tensorborad_add_video_xyz(writer, xyz, nb_iter, tag, nb_vis=4, title_batch=None, outname=None):
@@ -39,7 +40,9 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
     for batch in val_loader:
         word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, token, name = batch
 
-        motion = motion.cuda()
+        motion = motion.cuda().float()
+        src_mask = generate_src_mask(motion.shape[1], m_length).to(motion.device).unsqueeze(-1)
+        
         et, em = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, motion, m_length)
         bs, seq = motion.shape[0], motion.shape[1]
 
@@ -47,25 +50,31 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
         
         pred_pose_eval = torch.zeros((bs, seq, motion.shape[-1])).cuda()
 
-        for i in range(bs):
-            pose = val_loader.dataset.inv_transform(motion[i:i+1, :m_length[i], :].detach().cpu().numpy())
-            pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
+        # for i in range(bs):
+        pose = val_loader.dataset.inv_transform(motion.detach().cpu().numpy())
+        pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
 
 
-            pred_pose, loss_commit, perplexity = net(motion[i:i+1, :m_length[i]])
-            pred_denorm = val_loader.dataset.inv_transform(pred_pose.detach().cpu().numpy())
-            pred_xyz = recover_from_ric(torch.from_numpy(pred_denorm).float().cuda(), num_joints)
-            
-            if savenpy:
-                np.save(os.path.join(out_dir, name[i]+'_gt.npy'), pose_xyz[:, :m_length[i]].cpu().numpy())
-                np.save(os.path.join(out_dir, name[i]+'_pred.npy'), pred_xyz.detach().cpu().numpy())
+        pred_pose, perplexity, z, z_q = net(motion, src_mask=src_mask)
+        perplexity = perplexity.mean()
 
-            pred_pose_eval[i:i+1,:m_length[i],:] = pred_pose
+        pred_denorm = val_loader.dataset.inv_transform(pred_pose.detach().cpu().numpy())
+        pred_xyz = recover_from_ric(torch.from_numpy(pred_denorm).float().cuda(), num_joints)
+        
+        # if savenpy:
+        #     np.save(os.path.join(out_dir, name[i]+'_gt.npy'), pose_xyz[:, :m_length[i]].cpu().numpy())
+        #     np.save(os.path.join(out_dir, name[i]+'_pred.npy'), pred_xyz.detach().cpu().numpy())
 
-            if i < min(4, bs):
-                draw_org.append(pose_xyz)
-                draw_pred.append(pred_xyz)
-                draw_text.append(caption[i])
+        pred_pose_eval = pred_pose
+
+        # if i < min(4, bs):
+        #     draw_org.append(pose_xyz)
+        #     draw_pred.append(pred_xyz)
+        #     draw_text.append(caption[i])
+        for i in range(4):
+            draw_org.append(pose_xyz[i:i+1])
+            draw_pred.append(pred_xyz[i:i+1])
+            draw_text.append(caption[i])
 
         et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, m_length)
 

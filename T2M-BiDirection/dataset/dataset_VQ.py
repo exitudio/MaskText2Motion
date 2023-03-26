@@ -13,6 +13,7 @@ class VQMotionDataset(data.Dataset):
         self.window_size = window_size
         self.unit_length = unit_length
         self.dataset_name = dataset_name
+        min_motion_len = 40 if self.dataset_name =='t2m' else 24
 
         if dataset_name == 't2m':
             self.data_root = './dataset/HumanML3D'
@@ -48,7 +49,10 @@ class VQMotionDataset(data.Dataset):
         for name in tqdm(id_list):
             try:
                 motion = np.load(pjoin(self.motion_dir, name + '.npy'))
-                if motion.shape[0] < self.window_size:
+                # [INFO] (window_size == -1) is for vqvae_transformer. [Follow MD] throw away shorter or longer frame length
+                #       else for T2M-GPT (fixed window size = 64)
+                if (window_size == -1 and (len(motion)) < min_motion_len or (len(motion) >= 200)) or \
+                    motion.shape[0] < self.window_size:
                     continue
                 self.lengths.append(motion.shape[0] - self.window_size)
                 self.data.append(motion)
@@ -76,13 +80,30 @@ class VQMotionDataset(data.Dataset):
     def __getitem__(self, item):
         motion = self.data[item]
         
-        idx = random.randint(0, len(motion) - self.window_size)
+        if self.window_size > -1:
+            # [INFO] crop by window_size
+            m_length = -1
+            idx = random.randint(0, len(motion) - self.window_size)
+            motion = motion[idx:idx+self.window_size]
+        else:
+            # [INFO] fill up zero for short frames
+            m_length = motion.shape[0]
+            max_motion_length = self.max_motion_length
+            if m_length >= self.max_motion_length:
+                idx = random.randint(0, len(motion) - max_motion_length)
+                motion = motion[idx: idx + max_motion_length]
+            else:
+                padding_len = max_motion_length - m_length
+                D = motion.shape[1]
+                padding_zeros = np.zeros((padding_len, D))
+                motion = np.concatenate((motion, padding_zeros), axis=0)
 
-        motion = motion[idx:idx+self.window_size]
+            assert len(motion) == max_motion_length
+
         "Z Normalization"
         motion = (motion - self.mean) / self.std
 
-        return motion
+        return motion, m_length
 
 def DATALoader(dataset_name,
                batch_size,

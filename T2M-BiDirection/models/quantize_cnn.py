@@ -47,11 +47,15 @@ class QuantizeEMAReset(nn.Module):
         return perplexity
     
     @torch.no_grad()
-    def update_codebook(self, x, code_idx):
+    def update_codebook(self, x, code_idx, src_mask=None):
         
         code_onehot = torch.zeros(self.nb_code, x.shape[0], device=x.device)  # nb_code, N * L
         code_onehot.scatter_(0, code_idx.view(1, x.shape[0]), 1)
 
+        # if src_mask is not None:
+        #     src_mask = src_mask.view(-1, 1) # (B*T, 1)
+        #     # x = x * src_mask [INFO] x is already masked outside
+        #     code_onehot = code_onehot * src_mask.permute(1, 0) # (Code, B*T)
         code_sum = torch.matmul(code_onehot, x)  # nb_code, w
         code_count = code_onehot.sum(dim=-1)  # nb_code
 
@@ -66,10 +70,11 @@ class QuantizeEMAReset(nn.Module):
         code_update = self.code_sum.view(self.nb_code, self.code_dim) / self.code_count.view(self.nb_code, 1)
 
         self.codebook = usage * code_update + (1 - usage) * code_rand
+        
+        # if src_mask is not None:
+        #     return code_onehot
         prob = code_count / torch.sum(code_count)  
         perplexity = torch.exp(-torch.sum(prob * torch.log(prob + 1e-7)))
-
-            
         return perplexity
 
     def preprocess(self, x):
