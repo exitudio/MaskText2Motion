@@ -3,9 +3,9 @@
 # sbatch train_vq_transformer.sh
 # screen -S temp ~/git/MaskText2Motion/T2M-BiDirection/exit/experiments/train_vq_transformer.sh
 
-#SBATCH --job-name=1GPU
+#SBATCH --job-name=VQT_2_4ly_emb256_cbEmb32_8192
 #SBATCH --partition=GPU
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:2
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --mem=64gb
@@ -15,7 +15,7 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BiDirection
 conda activate T2M-GPT
-name='VQT-1'
+name='VQT_4_4ly_emb256_cbEmb128_fixL1_noZero'
 dataset_name='kit'
 debug='f'
 export CUDA_VISIBLE_DEVICES=0,1
