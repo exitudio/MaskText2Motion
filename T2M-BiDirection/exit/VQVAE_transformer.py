@@ -1,5 +1,5 @@
 import torch.nn as nn
-from models.quantize_cnn import QuantizeEMAReset, Quantizer, QuantizeEMA, QuantizeReset
+from models.quantize_cnn import QuantizeEMAReset
 from exit.motiontransformer import MotionTransformerOnly2, generate_src_mask
 
 class VQVAETransformer(nn.Module):

@@ -113,7 +113,7 @@ class MotionTransformerOnly2(nn.Module):
                 num_heads=num_heads)
             for i in range(num_layers)])
         self.ln_out = nn.LayerNorm(latent_dim)
-        self.out = zero_module(nn.Linear(latent_dim, output_feats))
+        self.out = nn.Linear(latent_dim, output_feats)
 
     def forward(self, x, src_mask=None):
         """

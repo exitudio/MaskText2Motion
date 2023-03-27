@@ -15,7 +15,7 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BiDirection
 conda activate T2M-GPT
-name='VQT_4_4ly_emb256_cbEmb128_fixL1_noZero'
+name='TEST'
 dataset_name='kit'
 debug='f'
 export CUDA_VISIBLE_DEVICES=0,1

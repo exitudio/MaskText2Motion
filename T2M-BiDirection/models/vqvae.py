@@ -1,6 +1,6 @@
 import torch.nn as nn
 from models.encdec import Encoder, Decoder
-from models.quantize_cnn import QuantizeEMAReset, Quantizer, QuantizeEMA, QuantizeReset
+from models.quantize_cnn import QuantizeEMAReset
 
 
 class VQVAE_251(nn.Module):
@@ -23,14 +23,9 @@ class VQVAE_251(nn.Module):
         self.quant = args.quantizer
         self.encoder = Encoder(251 if args.dataname == 'kit' else 263, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
         self.decoder = Decoder(251 if args.dataname == 'kit' else 263, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
-        if args.quantizer == "ema_reset":
-            self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
-        elif args.quantizer == "orig":
-            self.quantizer = Quantizer(nb_code, code_dim, 1.0)
-        elif args.quantizer == "ema":
-            self.quantizer = QuantizeEMA(nb_code, code_dim, args)
-        elif args.quantizer == "reset":
-            self.quantizer = QuantizeReset(nb_code, code_dim, args)
+        
+        # if args.quantizer == "ema_reset":
+        self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
 
 
     def preprocess(self, x):
