@@ -9,9 +9,7 @@ from tqdm import tqdm
 
 
 class VQMotionDataset(data.Dataset):
-    def __init__(self, dataset_name, feat_bias = 5, window_size = 64, unit_length = 8):
-        self.window_size = window_size
-        self.unit_length = unit_length
+    def __init__(self, dataset_name, feat_bias = 5):
         self.feat_bias = feat_bias
 
         self.dataset_name = dataset_name
@@ -88,26 +86,31 @@ class VQMotionDataset(data.Dataset):
         data = self.data_dict[name]
         motion, m_length = data['motion'], data['length']
 
-        m_length = (m_length // self.unit_length) * self.unit_length
-
-        idx = random.randint(0, len(motion) - m_length)
-        motion = motion[idx:idx+m_length]
+        if m_length >= self.max_motion_length:
+            # [TODO] Throw away 4 data (double check with MD that there are only 4 data that have frames longer than 196)
+            motion = motion[:self.max_motion_length]
+            m_length = self.max_motion_length
+        else:
+            padding_len = self.max_motion_length - m_length
+            D = motion.shape[1]
+            padding_zeros = np.zeros((padding_len, D))
+            motion = np.concatenate((motion, padding_zeros), axis=0)
 
         "Z Normalization"
         motion = (motion - self.mean) / self.std
 
-        return motion, name
+        return motion, name, m_length
 
 def DATALoader(dataset_name,
                 batch_size = 1,
-                num_workers = 8, unit_length = 4) : 
+                num_workers = 8) : 
     
-    train_loader = torch.utils.data.DataLoader(VQMotionDataset(dataset_name, unit_length=unit_length),
-                                              batch_size,
-                                              shuffle=True,
-                                              num_workers=num_workers,
-                                              #collate_fn=collate_fn,
-                                              drop_last = True)
+    train_loader = torch.utils.data.DataLoader(VQMotionDataset(dataset_name),
+                                                            batch_size,
+                                                            shuffle=True,
+                                                            num_workers=num_workers,
+                                                            #collate_fn=collate_fn,
+                                                            drop_last = True)
     
     return train_loader
 

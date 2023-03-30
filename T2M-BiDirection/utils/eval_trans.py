@@ -8,6 +8,8 @@ from scipy import linalg
 import visualization.plot_3d_global as plot_3d
 from utils.motion_process import recover_from_ric
 from exit.motiontransformer import generate_src_mask
+from exit.utils import get_model, visualize_2motions
+from tqdm import tqdm
 
 
 def tensorborad_add_video_xyz(writer, xyz, nb_iter, tag, nb_vis=4, title_batch=None, outname=None):
@@ -173,8 +175,7 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
 
 
 @torch.no_grad()        
-def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, draw = True, save = True, savegif=False) : 
-
+def evaluation_transformer(blank_id, out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, draw = True, save = True, savegif=False) : 
     trans.eval()
     nb_sample = 0
     
@@ -192,56 +193,41 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
 
     nb_sample = 0
     for i in range(1):
-        for batch in val_loader:
+        for batch in tqdm(val_loader):
             word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token, name = batch
-
+            pose = pose.cuda().float()
             bs, seq = pose.shape[:2]
             num_joints = 21 if pose.shape[-1] == 251 else 22
-            
             text = clip.tokenize(clip_text, truncate=True).cuda()
 
             feat_clip_text = clip_model.encode_text(text).float()
-            pred_pose_eval = torch.zeros((bs, seq, pose.shape[-1])).cuda()
-            pred_len = torch.ones(bs).long()
+            src_mask = generate_src_mask(pose.shape[1], m_length).to(pose.device).unsqueeze(-1)
+            index_motion = trans(feat_clip_text, False, type="sample")
+            # [TODO] T2M-GPT fillup the data more than length with zero (= src_mask)
+            lengths = torch.ones(index_motion.shape[0], device=index_motion.device) * index_motion.shape[1]
+            pred_length = (index_motion == blank_id).int().argmax(1).float()
+            lengths[pred_length>0] = pred_length[pred_length>0]
+            src_mask = generate_src_mask(index_motion.shape[1], lengths)
+            index_motion[~src_mask] = blank_id
+            src_mask = src_mask.unsqueeze(-1)
 
-            for k in range(bs):
-                try:
-                    index_motion = trans.sample(feat_clip_text[k:k+1], False)
-                except:
-                    index_motion = torch.ones(1,1).cuda().long()
-
-                pred_pose = net.forward_decoder(index_motion)
-                cur_len = pred_pose.shape[1]
-
-                pred_len[k] = min(cur_len, seq)
-                # [INFO] pred_pose_eval is only 50 frames from pred_pose and all zeros for other
-                pred_pose_eval[k:k+1, :cur_len] = pred_pose[:, :seq]
-
-                if draw:
-                    pred_denorm = val_loader.dataset.inv_transform(pred_pose.detach().cpu().numpy())
-                    pred_xyz = recover_from_ric(torch.from_numpy(pred_denorm).float().cuda(), num_joints)
-
-                    if i == 0 and k < 4:
-                        draw_pred.append(pred_xyz)
-                        draw_text_pred.append(clip_text[k])
-
-            et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, pred_len)
+            pred_pose_eval = net(index_motion, src_mask, type='decode')
+            # [TODO] T2M-GPT use pred_pose to crop the lenght instead of m_length (which from dataset)
+            et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, m_length)
             
             if i == 0:
-                pose = pose.cuda().float()
-                
                 et, em = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pose, m_length)
                 motion_annotation_list.append(em)
                 motion_pred_list.append(em_pred)
 
-                if draw:
-                    pose = val_loader.dataset.inv_transform(pose.detach().cpu().numpy())
-                    pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
+                # if draw:
+                #     pose = val_loader.dataset.inv_transform(pose.detach().cpu().numpy())
+                #     pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
 
 
-                    for j in range(min(4, bs)):
-                        draw_org.append(pose_xyz[j][:m_length[j]].unsqueeze(0))
-                        draw_text.append(clip_text[j])
+                #     for j in range(min(4, bs)):
+                #         draw_org.append(pose_xyz[j][:m_length[j]].unsqueeze(0))
+                #         draw_text.append(clip_text[j])
 
                 temp_R, temp_match = calculate_R_precision(et.cpu().numpy(), em.cpu().numpy(), top_k=3, sum_all=True)
                 R_precision_real += temp_R
@@ -281,14 +267,12 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         writer.add_scalar('./Test/top3', R_precision[2], nb_iter)
         writer.add_scalar('./Test/matching_score', matching_score_pred, nb_iter)
 
-    
-        if nb_iter % 10000 == 0 : 
-            for ii in range(4):
-                tensorborad_add_video_xyz(writer, draw_org[ii], nb_iter, tag='./Vis/org_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'gt'+str(ii)+'.gif')] if savegif else None)
-            
-        if nb_iter % 10000 == 0 : 
-            for ii in range(4):
-                tensorborad_add_video_xyz(writer, draw_pred[ii], nb_iter, tag='./Vis/pred_eval'+str(ii), nb_vis=1, title_batch=[draw_text_pred[ii]], outname=[os.path.join(out_dir, 'pred'+str(ii)+'.gif')] if savegif else None)
+        # if nb_iter % 10000 == 0 : 
+        #     for ii in range(4):
+        #         tensorborad_add_video_xyz(writer, draw_org[ii], nb_iter, tag='./Vis/org_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'gt'+str(ii)+'.gif')] if savegif else None)
+        # if nb_iter % 10000 == 0 : 
+        #     for ii in range(4):
+        #         tensorborad_add_video_xyz(writer, draw_pred[ii], nb_iter, tag='./Vis/pred_eval'+str(ii), nb_vis=1, title_batch=[draw_text_pred[ii]], outname=[os.path.join(out_dir, 'pred'+str(ii)+'.gif')] if savegif else None)
 
     
     if fid < best_fid : 
@@ -296,7 +280,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         logger.info(msg)
         best_fid, best_iter = fid, nb_iter
         if save:
-            torch.save({'trans' : trans.state_dict()}, os.path.join(out_dir, 'net_best_fid.pth'))
+            torch.save({'trans' : get_model(trans).state_dict()}, os.path.join(out_dir, 'net_best_fid.pth'))
     
     if matching_score_pred < best_matching : 
         msg = f"--> --> \t matching_score Improved from {best_matching:.5f} to {matching_score_pred:.5f} !!!"
@@ -324,10 +308,10 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         best_top3 = R_precision[2]
 
     if save:
-        torch.save({'trans' : trans.state_dict()}, os.path.join(out_dir, 'net_last.pth'))
+        torch.save({'trans' : get_model(trans).state_dict()}, os.path.join(out_dir, 'net_last.pth'))
 
     trans.train()
-    return best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger
+    return pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger
 
 
 @torch.no_grad()        
@@ -351,8 +335,7 @@ def evaluation_transformer_test(out_dir, val_loader, net, trans, logger, writer,
     matching_score_pred = 0
 
     nb_sample = 0
-    
-    for batch in val_loader:
+    for batch in tqdm(val_loader):
 
         word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token, name = batch
         bs, seq = pose.shape[:2]

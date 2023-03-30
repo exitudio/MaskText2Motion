@@ -25,7 +25,16 @@ class Text2Motion_Transformer(nn.Module):
     def get_block_size(self):
         return self.block_size
 
-    def forward(self, idxs, clip_feature):
+    def forward(self, *args, type='forward'):
+        '''type=[forward, sample]'''
+        if type=='forward':
+            return self.forward_function(*args)
+        elif type=='sample':
+            return self.sample(*args)
+        else:
+            raise ValueError(f'Unknown "{type}" type')
+
+    def forward_function(self, idxs, clip_feature):
         feat = self.trans_base(idxs, clip_feature)
         logits = self.trans_head(feat)
         return logits
@@ -42,13 +51,13 @@ class Text2Motion_Transformer(nn.Module):
             if if_categorial:
                 dist = Categorical(probs)
                 idx = dist.sample()
-                if idx == self.num_vq:
-                    break
+                # if idx == self.num_vq:
+                #     break
                 idx = idx.unsqueeze(-1)
             else:
                 _, idx = torch.topk(probs, k=1, dim=-1)
-                if idx[0] == self.num_vq:
-                    break
+                # if idx[0] == self.num_vq:
+                #     break
             # append to the sequence and continue
             if k == 0:
                 xs = idx
@@ -181,7 +190,7 @@ class CrossCondTransHead(nn.Module):
 
         self.blocks = nn.Sequential(*[Block(embed_dim, block_size, n_head, drop_out_rate, fc_rate) for _ in range(num_layers)])
         self.ln_f = nn.LayerNorm(embed_dim)
-        self.head = nn.Linear(embed_dim, num_vq + 1, bias=False)
+        self.head = nn.Linear(embed_dim, num_vq, bias=False) #[INFO] remove head + 1 (for end index)
         self.block_size = block_size
 
         self.apply(self._init_weights)

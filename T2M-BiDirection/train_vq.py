@@ -173,7 +173,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
         avg_recons, avg_perplexity, avg_commit = 0., 0., 0.,
 
     if nb_iter % args.eval_iter==0 :
-        torch.save({'net' : net.state_dict()}, os.path.join(args.out_dir, 'net_last.pth'))
+        torch.save({'net' : get_model(net).state_dict()}, os.path.join(args.out_dir, 'net_last.pth'))
         x = gt_motion[0].detach().cpu().numpy()
         y = pred_motion[0].detach().cpu().numpy()
         visualize_2motions(x, train_loader.dataset.std, train_loader.dataset.mean, args.dataname, m_length[0], y, save_path=f'{args.out_dir}/html/{str(nb_iter)}.html')

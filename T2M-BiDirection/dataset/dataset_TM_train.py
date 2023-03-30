@@ -16,16 +16,15 @@ def collate_fn(batch):
 
 '''For use of training text-2-motion generative model'''
 class Text2MotionDataset(data.Dataset):
-    def __init__(self, dataset_name, feat_bias = 5, unit_length = 4, codebook_size = 1024, tokenizer_name=None):
+    def __init__(self, dataset_name, blank_id, feat_bias = 5, codebook_size = 1024, tokenizer_name=None):
         
         self.max_length = 64
         self.pointer = 0
         self.dataset_name = dataset_name
 
-        self.unit_length = unit_length
         # self.mot_start_idx = codebook_size
-        self.mot_end_idx = codebook_size
-        self.mot_pad_idx = codebook_size + 1
+        # self.mot_end_idx = blank_id #codebook_size
+        self.mot_pad_idx = blank_id #codebook_size + 1
         if dataset_name == 't2m':
             self.data_root = './dataset/HumanML3D'
             self.motion_dir = pjoin(self.data_root, 'new_joint_vecs')
@@ -33,7 +32,7 @@ class Text2MotionDataset(data.Dataset):
             self.joints_num = 22
             radius = 4
             fps = 20
-            self.max_motion_length = 26 if unit_length == 8 else 51
+            self.max_motion_length = 196
             dim_pose = 263
             kinematic_chain = paramUtil.t2m_kinematic_chain
         elif dataset_name == 'kit':
@@ -44,7 +43,7 @@ class Text2MotionDataset(data.Dataset):
             radius = 240 * 8
             fps = 12.5
             dim_pose = 251
-            self.max_motion_length = 26 if unit_length == 8 else 51
+            self.max_motion_length = 196
             kinematic_chain = paramUtil.kit_kinematic_chain
 
         split_file = pjoin(self.data_root, 'train.txt')
@@ -59,7 +58,7 @@ class Text2MotionDataset(data.Dataset):
         data_dict = {}
         for name in tqdm(id_list):
             try:
-                m_token_list = np.load(pjoin(self.data_root, tokenizer_name, '%s.npy'%name))
+                m_token_list = np.load(pjoin(tokenizer_name, '%s.npy'%name))
 
                 # Read text
                 with cs.open(pjoin(self.text_dir, name + '.txt')) as f:
@@ -85,7 +84,7 @@ class Text2MotionDataset(data.Dataset):
                                 text_data.append(text_dict)
                             else:
                                 # [INFO] Check with KIT, doesn't come here that mean f_tag & to_tag are 0.0 (tag for caption from-to frames)
-                                m_token_list_new = [tokens[int(f_tag*fps/unit_length) : int(to_tag*fps/unit_length)] for tokens in m_token_list if int(f_tag*fps/unit_length) < int(to_tag*fps/unit_length)]
+                                m_token_list_new = [tokens[int(f_tag*fps) : int(to_tag*fps)] for tokens in m_token_list if int(f_tag*fps) < int(to_tag*fps)]
 
                                 if len(m_token_list_new) == 0:
                                     continue
@@ -129,10 +128,11 @@ class Text2MotionDataset(data.Dataset):
                 m_tokens = m_tokens[1:]
         m_tokens_len = m_tokens.shape[0]
 
-        if m_tokens_len+1 < self.max_motion_length:
-            m_tokens = np.concatenate([m_tokens, np.ones((1), dtype=int) * self.mot_end_idx, np.ones((self.max_motion_length-1-m_tokens_len), dtype=int) * self.mot_pad_idx], axis=0)
-        else:
-            m_tokens = np.concatenate([m_tokens, np.ones((1), dtype=int) * self.mot_end_idx], axis=0)
+        if m_tokens_len < self.max_motion_length:
+            m_tokens = np.concatenate([m_tokens, 
+                                       np.ones((self.max_motion_length-m_tokens_len), dtype=int) * self.mot_pad_idx], axis=0)
+        # else:
+        #     m_tokens = np.concatenate([m_tokens, np.ones((1), dtype=int) * self.mot_end_idx], axis=0)
 
         return caption, m_tokens.reshape(-1), m_tokens_len
 
@@ -140,10 +140,11 @@ class Text2MotionDataset(data.Dataset):
 
 
 def DATALoader(dataset_name,
-                batch_size, codebook_size, tokenizer_name, unit_length=4,
+                batch_size, codebook_size, tokenizer_name,
+                blank_id,
                 num_workers = 8) : 
 
-    train_loader = torch.utils.data.DataLoader(Text2MotionDataset(dataset_name, codebook_size = codebook_size, tokenizer_name = tokenizer_name, unit_length=unit_length),
+    train_loader = torch.utils.data.DataLoader(Text2MotionDataset(dataset_name, blank_id=blank_id, codebook_size = codebook_size, tokenizer_name = tokenizer_name),
                                               batch_size,
                                               shuffle=True,
                                               num_workers=num_workers,
