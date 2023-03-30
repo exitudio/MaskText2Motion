@@ -109,8 +109,8 @@ for batch in train_loader_token:
     target = net(pose, src_mask, type='encode')
     target = target.cpu().numpy()
     for i in range(target.shape[0]):
-        trim_target = target[i][:m_length[i]]
-        np.save(pjoin(args.vq_dir, name[i] +'.npy'), trim_target)
+        trim_target = target[i:i+1][:m_length[i]]
+        np.save(pjoin(codebook_dir, name[i] +'.npy'), trim_target)
 blank_id = torch.mode(torch.tensor(target[:, -1])).values
 blank_id = blank_id.item()
 # blank_id = 88 # [TODO] rm mock blank_id
