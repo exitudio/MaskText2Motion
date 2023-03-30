@@ -20,7 +20,7 @@ dataset_name='kit'
 vq_name='VQT_6_cbEmb32x8192_fixQMultiGPU'
 debug='f'
 # export CUDA_VISIBLE_DEVICES=3
-CUDA_LAUNCH_BLOCKING=1
+# CUDA_LAUNCH_BLOCKING=1
 python3 train_t2m_trans.py  \
     --exp-name ${name} \
     --batch-size 128 \
