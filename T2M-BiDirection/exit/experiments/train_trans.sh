@@ -29,7 +29,7 @@ python3 train_t2m_trans.py  \
     --nb-code 8192 \
     --code-dim 32 \
     --n-head-gpt 16 \
-    --block-size 196 \
+    --block-size 197 \
     --ff-rate 4 \
     --drop-out-rate 0.1 \
     --resume-pth output/${vq_name}/net_last.pth \

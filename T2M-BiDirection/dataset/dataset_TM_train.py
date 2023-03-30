@@ -32,7 +32,7 @@ class Text2MotionDataset(data.Dataset):
             self.joints_num = 22
             radius = 4
             fps = 20
-            self.max_motion_length = 196
+            self.max_motion_length = 196+1
             dim_pose = 263
             kinematic_chain = paramUtil.t2m_kinematic_chain
         elif dataset_name == 'kit':
@@ -43,7 +43,7 @@ class Text2MotionDataset(data.Dataset):
             radius = 240 * 8
             fps = 12.5
             dim_pose = 251
-            self.max_motion_length = 196
+            self.max_motion_length = 196+1
             kinematic_chain = paramUtil.kit_kinematic_chain
 
         split_file = pjoin(self.data_root, 'train.txt')
