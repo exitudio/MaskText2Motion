@@ -1,11 +1,11 @@
 #!/bin/sh
-# cd /users/epinyoan/git/MaskText2Motion/T2M-GPT/experiments/
+# cd /users/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
 # sbatch train_trans.sh
-# screen -S temp ~/git/MaskText2Motion/T2M-GPT/experiments/train_trans.sh
+# screen -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
 
-#SBATCH --job-name=trans
+#SBATCH --job-name=trans4gpu
 #SBATCH --partition=GPU
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:4
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --mem=64gb
@@ -13,16 +13,19 @@
 #SBATCH --output=%x.%j.out
 
 . ~/miniconda3/etc/profile.d/conda.sh
-cd ~/git/MaskText2Motion/T2M-GPT
+cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='1_TRANS'
+name='2_TRANS_4GPU'
 dataset_name='kit'
 vq_name='VQVAE'
 debug='f'
 # export CUDA_VISIBLE_DEVICES=3
+# export CUDA_LAUNCH_BLOCKING=1
+num_gpu=4
+
 python3 train_t2m_trans.py  \
     --exp-name ${name} \
-    --batch-size 128 \
+    --batch-size $((128*num_gpu)) \
     --num-layers 9 \
     --embed-dim-gpt 1024 \
     --nb-code 512 \
@@ -33,14 +36,14 @@ python3 train_t2m_trans.py  \
     --resume-pth output/${vq_name}/net_last.pth \
     --vq-name ${vq_name} \
     --out-dir output \
-    --total-iter 300000 \
-    --lr-scheduler 150000 \
+    --total-iter $((300000/num_gpu)) \
+    --lr-scheduler $((150000/num_gpu)) \
     --lr 0.0001 \
     --dataname ${dataset_name} \
     --down-t 2 \
     --depth 3 \
     --quantizer ema_reset \
-    --eval-iter 10000 \
+    --eval-iter $((10000/num_gpu)) \
     --pkeep 0.5 \
     --dilation-growth-rate 3 \
     --vq-act relu

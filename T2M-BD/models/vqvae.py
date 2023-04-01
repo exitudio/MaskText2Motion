@@ -73,7 +73,7 @@ class VQVAE_251(nn.Module):
 
     def forward_decoder(self, x):
         x_d = self.quantizer.dequantize(x)
-        x_d = x_d.view(1, -1, self.code_dim).permute(0, 2, 1).contiguous()
+        x_d = x_d.permute(0, 2, 1).contiguous()
         
         # decoder
         x_decoder = self.decoder(x_d)
@@ -101,18 +101,18 @@ class HumanVQVAE(nn.Module):
         self.nb_joints = 21 if args.dataname == 'kit' else 22
         self.vqvae = VQVAE_251(args, nb_code, code_dim, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
 
-    def encode(self, x):
-        b, t, c = x.size()
-        quants = self.vqvae.encode(x) # (N, T)
-        return quants
-
-    def forward(self, x):
-
-        x_out, loss, perplexity = self.vqvae(x)
-        
-        return x_out, loss, perplexity
-
-    def forward_decoder(self, x):
-        x_out = self.vqvae.forward_decoder(x)
-        return x_out
+    def forward(self, x, type='full'):
+        '''type=[full, encode, decode]'''
+        if type=='full':
+            x_out, loss, perplexity = self.vqvae(x)
+            return x_out, loss, perplexity
+        elif type=='encode':
+            b, t, c = x.size()
+            quants = self.vqvae.encode(x) # (N, T)
+            return quants
+        elif type=='decode':
+            x_out = self.vqvae.forward_decoder(x)
+            return x_out
+        else:
+            raise ValueError(f'Unknown "{type}" type')
         

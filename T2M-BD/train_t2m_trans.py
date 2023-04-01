@@ -20,27 +20,32 @@ from options.get_eval_option import get_opt
 from models.evaluator_wrapper import EvaluatorModelWrapper
 import warnings
 warnings.filterwarnings('ignore')
+from exit.utils import get_model, visualize_2motions
+from tqdm import tqdm
+from exit.utils import get_model, visualize_2motions, generate_src_mask
 
 ##### ---- Exp dirs ---- #####
 args = option_trans.get_args_parser()
 torch.manual_seed(args.seed)
 
 args.out_dir = os.path.join(args.out_dir, f'{args.exp_name}')
-args.vq_dir= os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
-os.makedirs(args.out_dir, exist_ok = True)
+# [TODO] make the 'output/' folder as arg
+args.vq_dir= f'output/{args.vq_name}' #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
+codebook_dir = f'{args.vq_dir}/codebook/'
 os.makedirs(args.vq_dir, exist_ok = True)
+os.makedirs(codebook_dir, exist_ok = True)
+os.makedirs(args.out_dir, exist_ok = True)
+os.makedirs(args.out_dir+'/html', exist_ok=True)
 
 ##### ---- Logger ---- #####
 logger = utils_model.get_logger(args.out_dir)
 writer = SummaryWriter(args.out_dir)
 logger.info(json.dumps(vars(args), indent=4, sort_keys=True))
 
-##### ---- Dataloader ---- #####
-train_loader_token = dataset_tokenize.DATALoader(args.dataname, 1, unit_length=2**args.down_t)
 
 from utils.word_vectorizer import WordVectorizer
 w_vectorizer = WordVectorizer('./glove', 'our_vab')
-val_loader = dataset_TM_eval.DATALoader(args.dataname, False, 32, w_vectorizer)
+val_loader = dataset_TM_eval.DATALoader(args.dataname, False, 128, w_vectorizer)
 
 dataset_opt_path = 'checkpoints/kit/Comp_v6_KLD005/opt.txt' if args.dataname == 'kit' else 'checkpoints/t2m/Comp_v6_KLD005/opt.txt'
 
@@ -53,6 +58,16 @@ clip.model.convert_weights(clip_model)  # Actually this line is unnecessary sinc
 clip_model.eval()
 for p in clip_model.parameters():
     p.requires_grad = False
+
+# https://github.com/openai/CLIP/issues/111
+class TextCLIP(torch.nn.Module):
+    def __init__(self, model) :
+        super(TextCLIP, self).__init__()
+        self.model = model
+        
+    def forward(self,text):
+        return self.model.encode_text(text)
+clip_model = TextCLIP(clip_model)
 
 net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
                        args.nb_code,
@@ -73,11 +88,14 @@ trans_encoder = trans.Text2Motion_Transformer(num_vq=args.nb_code,
                                 n_head=args.n_head_gpt, 
                                 drop_out_rate=args.drop_out_rate, 
                                 fc_rate=args.ff_rate)
-
+trans_encoder = torch.nn.DataParallel(trans_encoder)
 
 print ('loading checkpoint from {}'.format(args.resume_pth))
 ckpt = torch.load(args.resume_pth, map_location='cpu')
 net.load_state_dict(ckpt['net'], strict=True)
+# [TODO] DP doesn't work with single sample of vqvae decoder in eval
+# [TODO] move to [1stage] VQ stage
+# net = torch.nn.DataParallel(net)
 net.eval()
 net.cuda()
 
@@ -100,24 +118,34 @@ right_num = 0
 nb_sample_train = 0
 
 ##### ---- get code ---- #####
+##### ---- Dataloader ---- #####
+train_loader_token = dataset_tokenize.DATALoader(args.dataname, 1, unit_length=2**args.down_t)
 for batch in train_loader_token:
     pose, name = batch
     bs, seq = pose.shape[0], pose.shape[1]
 
     pose = pose.cuda().float() # bs, nb_joints, joints_dim, seq_len
-    target = net.encode(pose)
+    target = net(pose, type='encode')
     target = target.cpu().numpy()
-    np.save(pjoin(args.vq_dir, name[0] +'.npy'), target)
+    np.save(pjoin(codebook_dir, name[0] +'.npy'), target)
 
 
-train_loader = dataset_TM_train.DATALoader(args.dataname, args.batch_size, args.nb_code, args.vq_name, unit_length=2**args.down_t)
+train_loader = dataset_TM_train.DATALoader(args.dataname, args.batch_size, args.nb_code, codebook_dir, unit_length=2**args.down_t)
 train_loader_iter = dataset_TM_train.cycle(train_loader)
 
         
 ##### ---- Training ---- #####
-best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, clip_model=clip_model, eval_wrapper=eval_wrapper)
-while nb_iter <= args.total_iter:
-    
+best_fid=1000 
+best_iter=0 
+best_div=100 
+best_top1=0 
+best_top2=0 
+best_top3=0 
+best_matching=100 
+pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, clip_model=clip_model, eval_wrapper=eval_wrapper)
+
+# while nb_iter <= args.total_iter:
+for nb_iter in tqdm(range(1, args.total_iter + 1)):
     batch = next(train_loader_iter)
     clip_text, m_tokens, m_tokens_len = batch
     m_tokens, m_tokens_len = m_tokens.cuda(), m_tokens_len.cuda()
@@ -127,7 +155,7 @@ while nb_iter <= args.total_iter:
     
     text = clip.tokenize(clip_text, truncate=True).cuda()
     
-    feat_clip_text = clip_model.encode_text(text).float()
+    feat_clip_text = clip_model(text).float()
 
     input_index = target[:,:-1]
 
@@ -145,21 +173,13 @@ while nb_iter <= args.total_iter:
     cls_pred = trans_encoder(a_indices, feat_clip_text)
     cls_pred = cls_pred.contiguous()
 
-    loss_cls = 0.0
-    for i in range(bs):
-        # loss function     (26), (26, 513)
-        loss_cls += loss_ce(cls_pred[i][:m_tokens_len[i] + 1], target[i][:m_tokens_len[i] + 1]) / bs
+    cb_idx_mask = generate_src_mask(target.shape[1], m_tokens_len+1)
+    all_cls_pred_mask = torch.masked_select(cls_pred, cb_idx_mask.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
+    all_target_mask = torch.masked_select(target, cb_idx_mask)
+    loss_cls = loss_ce(all_cls_pred_mask, all_target_mask) #/ bs
 
-        # Accuracy
-        probs = torch.softmax(cls_pred[i][:m_tokens_len[i] + 1], dim=-1)
 
-        if args.if_maxtest:
-            _, cls_pred_index = torch.max(probs, dim=-1)
 
-        else:
-            dist = Categorical(probs)
-            cls_pred_index = dist.sample()
-        right_num += (cls_pred_index.flatten(0) == target[i][:m_tokens_len[i] + 1].flatten(0)).sum().item()
 
     ## global loss
     optimizer.zero_grad()
@@ -170,8 +190,18 @@ while nb_iter <= args.total_iter:
     avg_loss_cls = avg_loss_cls + loss_cls.item()
     nb_sample_train = nb_sample_train + (m_tokens_len + 1).sum().item()
 
-    nb_iter += 1
+    # nb_iter += 1
     if nb_iter % args.print_iter ==  0 :
+        for i in range(bs):
+            # Accuracy
+            probs = torch.softmax(cls_pred[i][:m_tokens_len[i] + 1], dim=-1)
+            if args.if_maxtest:
+                _, cls_pred_index = torch.max(probs, dim=-1)
+            else:
+                dist = Categorical(probs)
+                cls_pred_index = dist.sample()
+            right_num += (cls_pred_index.flatten(0) == target[i][:m_tokens_len[i] + 1].flatten(0)).sum().item()
+
         avg_loss_cls = avg_loss_cls / args.print_iter
         avg_acc = right_num * 100 / nb_sample_train
         writer.add_scalar('./Loss/train', avg_loss_cls, nb_iter)
@@ -183,7 +213,13 @@ while nb_iter <= args.total_iter:
         nb_sample_train = 0
 
     if nb_iter % args.eval_iter ==  0:
-        best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model=clip_model, eval_wrapper=eval_wrapper)
+        pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model=clip_model, eval_wrapper=eval_wrapper)
+        for i in range(4):
+            x = pose[i].detach().cpu().numpy()
+            y = pred_pose_eval[i].detach().cpu().numpy()
+            l = m_length[i]
+            caption = clip_text[i]
+            visualize_2motions(x, val_loader.dataset.std, val_loader.dataset.mean, args.dataname, l, y, save_path=f'{args.out_dir}/html/{str(nb_iter)}_{caption}_{l}.html')
 
     if nb_iter == args.total_iter: 
         msg_final = f"Train. Iter {best_iter} : FID. {best_fid:.5f}, Diversity. {best_div:.4f}, TOP1. {best_top1:.4f}, TOP2. {best_top2:.4f}, TOP3. {best_top3:.4f}"

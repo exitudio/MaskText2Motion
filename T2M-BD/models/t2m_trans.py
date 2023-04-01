@@ -25,7 +25,16 @@ class Text2Motion_Transformer(nn.Module):
     def get_block_size(self):
         return self.block_size
 
-    def forward(self, idxs, clip_feature):
+    def forward(self, *args, type='forward'):
+        '''type=[forward, sample]'''
+        if type=='forward':
+            return self.forward_function(*args)
+        elif type=='sample':
+            return self.sample(*args)
+        else:
+            raise ValueError(f'Unknown "{type}" type')
+
+    def forward_function(self, idxs, clip_feature):
         feat = self.trans_base(idxs, clip_feature)
         logits = self.trans_head(feat)
         return logits
