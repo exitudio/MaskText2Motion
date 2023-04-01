@@ -15,7 +15,7 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='2_TRANS_4GPU'
+name='2_TRANS_4GPU' # TEMP
 dataset_name='kit'
 vq_name='VQVAE'
 debug='f'

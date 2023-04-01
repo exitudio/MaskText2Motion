@@ -8,6 +8,9 @@ import torch
 from utils.motion_process import recover_from_ric
 import copy
 import plotly.graph_objects as go
+import shutil
+import datetime
+import os
 
 kit_bone = [[0, 11], [11, 12], [12, 13], [13, 14], [14, 15], [0, 16], [16, 17], [17, 18], [18, 19], [19, 20], [0, 1], [1, 2], [2, 3], [3, 4], [3, 5], [5, 6], [6, 7], [3, 8], [8, 9], [9, 10]]
 t2m_bone = [[0,2], [2,5],[5,8],[8,11],
@@ -232,3 +235,19 @@ def generate_src_mask(T, length):
     B = len(length)
     mask = torch.arange(T).repeat(B, 1).to(length.device) < length.unsqueeze(-1)
     return mask
+
+def init_save_folder(args):
+    import glob
+    if args.exp_name != 'TEMP':
+        date = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        args.out_dir = f"./{args.out_dir}/{date}_{args.exp_name}/"
+        save_source = f'{args.out_dir}source/'
+        os.makedirs(save_source, exist_ok=False)
+        for f in  glob.glob('dataset/dataset*.py')+['exit', 'experiments', 'models', 'options', 'GPT_eval_multi.py', 'train_t2m_trans.py', 'train_vq.py', 'VQ_eval.py']:
+            try:
+                shutil.copytree(f, f'{save_source}/{f}', ignore=shutil.ignore_patterns('__pycache__'))
+            except:
+                os.makedirs(os.path.dirname(f'{save_source}{f}'), exist_ok=True)
+                shutil.copy(f, f'{save_source}{f}')
+    else:
+        args.out_dir = os.path.join(args.out_dir, f'{args.exp_name}')

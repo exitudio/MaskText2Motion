@@ -22,13 +22,15 @@ import warnings
 warnings.filterwarnings('ignore')
 from exit.utils import get_model, visualize_2motions
 from tqdm import tqdm
-from exit.utils import get_model, visualize_2motions, generate_src_mask
+from exit.utils import get_model, visualize_2motions, generate_src_mask, init_save_folder
 
 ##### ---- Exp dirs ---- #####
 args = option_trans.get_args_parser()
 torch.manual_seed(args.seed)
 
-args.out_dir = os.path.join(args.out_dir, f'{args.exp_name}')
+# args.out_dir = os.path.join(args.out_dir, f'{args.exp_name}')
+init_save_folder(args)
+
 # [TODO] make the 'output/' folder as arg
 args.vq_dir= f'output/{args.vq_name}' #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
 codebook_dir = f'{args.vq_dir}/codebook/'
@@ -173,13 +175,21 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
     cls_pred = trans_encoder(a_indices, feat_clip_text)
     cls_pred = cls_pred.contiguous()
 
-    cb_idx_mask = generate_src_mask(target.shape[1], m_tokens_len+1)
-    all_cls_pred_mask = torch.masked_select(cls_pred, cb_idx_mask.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
-    all_target_mask = torch.masked_select(target, cb_idx_mask)
-    loss_cls = loss_ce(all_cls_pred_mask, all_target_mask) #/ bs
+    loss_cls = 0.0
+    for i in range(bs):
+        # loss function     (26), (26, 513)
+        loss_cls += loss_ce(cls_pred[i][:m_tokens_len[i] + 1], target[i][:m_tokens_len[i] + 1]) / bs
 
+        # Accuracy
+        probs = torch.softmax(cls_pred[i][:m_tokens_len[i] + 1], dim=-1)
 
+        if args.if_maxtest:
+            _, cls_pred_index = torch.max(probs, dim=-1)
 
+        else:
+            dist = Categorical(probs)
+            cls_pred_index = dist.sample()
+        right_num += (cls_pred_index.flatten(0) == target[i][:m_tokens_len[i] + 1].flatten(0)).sum().item()
 
     ## global loss
     optimizer.zero_grad()
@@ -192,16 +202,6 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
 
     # nb_iter += 1
     if nb_iter % args.print_iter ==  0 :
-        for i in range(bs):
-            # Accuracy
-            probs = torch.softmax(cls_pred[i][:m_tokens_len[i] + 1], dim=-1)
-            if args.if_maxtest:
-                _, cls_pred_index = torch.max(probs, dim=-1)
-            else:
-                dist = Categorical(probs)
-                cls_pred_index = dist.sample()
-            right_num += (cls_pred_index.flatten(0) == target[i][:m_tokens_len[i] + 1].flatten(0)).sum().item()
-
         avg_loss_cls = avg_loss_cls / args.print_iter
         avg_acc = right_num * 100 / nb_sample_train
         writer.add_scalar('./Loss/train', avg_loss_cls, nb_iter)
