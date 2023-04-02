@@ -243,7 +243,7 @@ def init_save_folder(args):
         args.out_dir = f"./{args.out_dir}/{date}_{args.exp_name}/"
         save_source = f'{args.out_dir}source/'
         os.makedirs(save_source, exist_ok=False)
-        for f in  glob.glob('dataset/dataset*.py')+['exit', 'experiments', 'models', 'options', 'GPT_eval_multi.py', 'train_t2m_trans.py', 'train_vq.py', 'VQ_eval.py']:
+        for f in  glob.glob('dataset/dataset*.py')+['exit', 'experiments', 'models', 'options', 'utils', 'GPT_eval_multi.py', 'train_t2m_trans.py', 'train_vq.py', 'VQ_eval.py']:
             try:
                 shutil.copytree(f, f'{save_source}/{f}', ignore=shutil.ignore_patterns('__pycache__'))
             except:

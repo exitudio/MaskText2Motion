@@ -199,7 +199,6 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
             pred_len = torch.ones(bs).long()
 
             index_motion = trans(feat_clip_text, False, type="sample")
-            # [TODO] T2M-GPT fillup the data more than length with zero (= src_mask)
             lengths = torch.ones(index_motion.shape[0], device=index_motion.device) * index_motion.shape[1]
             # [INFO] 1. this get the last index of blank_id
             # pred_length = (index_motion == blank_id).int().argmax(1).float()

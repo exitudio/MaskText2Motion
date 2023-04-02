@@ -9,7 +9,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --mem=64gb
-#SBATCH --time=47:30:00
+#SBATCH --time=109:30:00
 #SBATCH --output=%x.%j.out
 
 . ~/miniconda3/etc/profile.d/conda.sh
