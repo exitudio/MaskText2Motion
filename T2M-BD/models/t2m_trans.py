@@ -51,13 +51,13 @@ class Text2Motion_Transformer(nn.Module):
             if if_categorial:
                 dist = Categorical(probs)
                 idx = dist.sample()
-                if idx == self.num_vq:
-                    break
+                # if idx == self.num_vq:
+                #     break
                 idx = idx.unsqueeze(-1)
             else:
                 _, idx = torch.topk(probs, k=1, dim=-1)
-                if idx[0] == self.num_vq:
-                    break
+                # if idx[0] == self.num_vq:
+                #     break
             # append to the sequence and continue
             if k == 0:
                 xs = idx

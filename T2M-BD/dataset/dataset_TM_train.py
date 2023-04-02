@@ -25,7 +25,7 @@ class Text2MotionDataset(data.Dataset):
         self.unit_length = unit_length
         # self.mot_start_idx = codebook_size
         self.mot_end_idx = codebook_size
-        self.mot_pad_idx = codebook_size + 1
+        self.mot_pad_idx = codebook_size # + 1 # [TODO] I think 513 (codebook_size+1) can be what ever, it will be croped out
         if dataset_name == 't2m':
             self.data_root = './dataset/HumanML3D'
             self.motion_dir = pjoin(self.data_root, 'new_joint_vecs')
