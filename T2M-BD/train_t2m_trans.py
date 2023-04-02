@@ -90,7 +90,6 @@ trans_encoder = trans.Text2Motion_Transformer(num_vq=args.nb_code,
                                 n_head=args.n_head_gpt, 
                                 drop_out_rate=args.drop_out_rate, 
                                 fc_rate=args.ff_rate)
-trans_encoder = torch.nn.DataParallel(trans_encoder)
 
 print ('loading checkpoint from {}'.format(args.resume_pth))
 ckpt = torch.load(args.resume_pth, map_location='cpu')
@@ -107,6 +106,7 @@ if args.resume_trans is not None:
     trans_encoder.load_state_dict(ckpt['trans'], strict=True)
 trans_encoder.train()
 trans_encoder.cuda()
+trans_encoder = torch.nn.DataParallel(trans_encoder)
 
 ##### ---- Optimizer & Scheduler ---- #####
 optimizer = utils_model.initial_optim(args.decay_option, args.lr, args.weight_decay, trans_encoder, args.optimizer)
@@ -215,7 +215,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
     if nb_iter % args.eval_iter ==  0:
         pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model=clip_model, eval_wrapper=eval_wrapper)
         for i in range(4):
-            x = pose[i] #.detach().cpu().numpy()
+            x = pose[i].detach().cpu().numpy()
             y = pred_pose_eval[i].detach().cpu().numpy()
             l = m_length[i]
             caption = clip_text[i]

@@ -227,9 +227,9 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
                 motion_annotation_list.append(em)
                 motion_pred_list.append(em_pred)
 
-                if draw:
-                    pose = val_loader.dataset.inv_transform(pose.detach().cpu().numpy())
-                    # pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
+                # if draw:
+                #     pose = val_loader.dataset.inv_transform(pose.detach().cpu().numpy())
+                #     pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
 
 
                 #     for j in range(min(4, bs)):
