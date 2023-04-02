@@ -113,7 +113,7 @@ optimizer = utils_model.initial_optim(args.decay_option, args.lr, args.weight_de
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_scheduler, gamma=args.gamma)
 
 ##### ---- Optimization goals ---- #####
-loss_ce = torch.nn.CrossEntropyLoss()
+loss_ce = torch.nn.CrossEntropyLoss(reduction='none')
 
 nb_iter, avg_loss_cls, avg_acc = 0, 0., 0.
 right_num = 0
@@ -175,21 +175,25 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
     cls_pred = trans_encoder(a_indices, feat_clip_text)
     cls_pred = cls_pred.contiguous()
 
-    loss_cls = 0.0
-    for i in range(bs):
-        # loss function     (26), (26, 513)
-        loss_cls += loss_ce(cls_pred[i][:m_tokens_len[i] + 1], target[i][:m_tokens_len[i] + 1]) / bs
+    # [INFO] Compute xent loss as a batch
+    cb_idx_mask = generate_src_mask(target.shape[1], m_tokens_len+1)
+    cls_pred_all_masked = torch.masked_select(cls_pred, cb_idx_mask.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
+    target_all_masked = torch.masked_select(target, cb_idx_mask)
 
-        # Accuracy
-        probs = torch.softmax(cls_pred[i][:m_tokens_len[i] + 1], dim=-1)
+    denom = torch.ones(*target.shape).cuda() * bs * (m_tokens_len+1).unsqueeze(-1)
+    denom = torch.masked_select(denom, cb_idx_mask)
 
-        if args.if_maxtest:
-            _, cls_pred_index = torch.max(probs, dim=-1)
+    loss_cls = loss_ce(cls_pred_all_masked, target_all_masked) / denom
+    loss_cls = loss_cls.sum()
 
-        else:
-            dist = Categorical(probs)
-            cls_pred_index = dist.sample()
-        right_num += (cls_pred_index.flatten(0) == target[i][:m_tokens_len[i] + 1].flatten(0)).sum().item()
+    # [INFO] accomulate right_num to compute Acc.
+    probs = torch.softmax(cls_pred_all_masked, dim=-1)
+    if args.if_maxtest:
+        _, cls_pred_index = torch.max(probs, dim=-1)
+    else:
+        dist = Categorical(probs)
+        cls_pred_index = dist.sample()
+    right_num += (cls_pred_index == target_all_masked).sum().item()
 
     ## global loss
     optimizer.zero_grad()
