@@ -47,7 +47,7 @@ logger.info(json.dumps(vars(args), indent=4, sort_keys=True))
 
 from utils.word_vectorizer import WordVectorizer
 w_vectorizer = WordVectorizer('./glove', 'our_vab')
-val_loader = dataset_TM_eval.DATALoader(args.dataname, False, 128, w_vectorizer)
+val_loader = dataset_TM_eval.DATALoader(args.dataname, False, 32, w_vectorizer)
 
 dataset_opt_path = 'checkpoints/kit/Comp_v6_KLD005/opt.txt' if args.dataname == 'kit' else 'checkpoints/t2m/Comp_v6_KLD005/opt.txt'
 
@@ -204,6 +204,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
     avg_loss_cls = avg_loss_cls + loss_cls.item()
     nb_sample_train = nb_sample_train + (m_tokens_len + 1).sum().item()
 
+    # print('acc:', right_num * 100 / nb_sample_train)
     # nb_iter += 1
     if nb_iter % args.print_iter ==  0 :
         avg_loss_cls = avg_loss_cls / args.print_iter

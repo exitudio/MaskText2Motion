@@ -15,17 +15,17 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='2_TRANS_4GPU' # TEMP
+name='5_Trans_100kIt_fixEval' # TEMP
 dataset_name='kit'
 vq_name='VQVAE'
 debug='f'
-# export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export CUDA_LAUNCH_BLOCKING=1
-num_gpu=4
+MULTI_BATCH=4
 
 python3 train_t2m_trans.py  \
     --exp-name ${name} \
-    --batch-size $((128*num_gpu)) \
+    --batch-size $((128*MULTI_BATCH)) \
     --num-layers 9 \
     --embed-dim-gpt 1024 \
     --nb-code 512 \
@@ -36,15 +36,24 @@ python3 train_t2m_trans.py  \
     --resume-pth output/${vq_name}/net_last.pth \
     --vq-name ${vq_name} \
     --out-dir output \
-    --total-iter $((300000/num_gpu)) \
-    --lr-scheduler $((150000/num_gpu)) \
+    --total-iter $((300000/MULTI_BATCH)) \
+    --lr-scheduler $((150000/MULTI_BATCH)) \
     --lr 0.0001 \
     --dataname ${dataset_name} \
     --down-t 2 \
     --depth 3 \
     --quantizer ema_reset \
-    --eval-iter $((10000/num_gpu)) \
+    --eval-iter $((10000/MULTI_BATCH)) \
     --pkeep 0.5 \
     --dilation-growth-rate 3 \
     --vq-act relu
 sleep 500
+
+# original setting
+# --batch-size $((128*num_gpu)) \
+# --num-layers 9 \
+# --embed-dim-gpt 1024 \
+# --n-head-gpt 16 \
+# --total-iter $((300000/num_gpu)) \
+# --lr-scheduler $((150000/num_gpu)) \
+# --eval-iter $((10000/num_gpu)) \

@@ -199,22 +199,20 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
             pred_len = torch.ones(bs).long()
 
             index_motion = trans(feat_clip_text, False, type="sample")
-            lengths = torch.ones(index_motion.shape[0], device=index_motion.device) * index_motion.shape[1]
             # [INFO] 1. this get the last index of blank_id
             # pred_length = (index_motion == blank_id).int().argmax(1).float()
             # [INFO] 2. this get the first index of blank_id
             pred_length = (index_motion >= blank_id).int()
             pred_length = torch.topk(pred_length, k=1, dim=1).indices.squeeze().float()
-            cond = (pred_length>0) + (index_motion[:, 0] >= blank_id) # [INFO] add condition for the first index is blank_id (to separate 2 cases: 0 means first idx is blank_id or no blank_id at all)
-            lengths[cond] = pred_length[cond]
+            pred_length[pred_length==0] = index_motion.shape[1] # if blank_id in the first frame, set length to max
             # [INFO] need to run single sample at a time b/c it's conv
             for k in range(bs):
-                pred_pose = net(index_motion[k:k+1, :int(lengths[k].item())], type='decode')
+                pred_pose = net(index_motion[k:k+1, :int(pred_length[k].item())], type='decode')
                 cur_len = pred_pose.shape[1]
 
                 pred_len[k] = min(cur_len, seq)
                 pred_pose_eval[k:k+1, :cur_len] = pred_pose[:, :seq]
-            et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, m_length)
+            et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, pred_len)
             
             if i == 0:
                 pose = pose.cuda().float()

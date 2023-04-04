@@ -224,7 +224,7 @@ def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, save_path=N
     fig.update_layout(sliders=sliders)
     fig.show()
     if save_path is not None:
-        fig.write_html(save_path)
+        fig.write_html(save_path, auto_open=False)
 
 def get_range(skeleton, index):
     _min, _max = skeleton[:, :, index].min(), skeleton[:, :, index].max()
