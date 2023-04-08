@@ -21,6 +21,7 @@ vq_name='VQVAE'
 debug='f'
 # export CUDA_VISIBLE_DEVICES=3
 # export CUDA_LAUNCH_BLOCKING=1
+# --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/2023-04-08-08-16-27_2_train_withEval/net_last.pth
 MULTI_BATCH=4
 
 python3 train_t2m_trans.py  \

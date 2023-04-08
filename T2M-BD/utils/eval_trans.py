@@ -204,9 +204,12 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
             # [INFO] 2. this get the first index of blank_id
             pred_length = (index_motion >= blank_id).int()
             pred_length = torch.topk(pred_length, k=1, dim=1).indices.squeeze().float()
-            pred_length[pred_length==0] = index_motion.shape[1] # if blank_id in the first frame, set length to max
+            # pred_length[pred_length==0] = index_motion.shape[1] # if blank_id in the first frame, set length to max
             # [INFO] need to run single sample at a time b/c it's conv
             for k in range(bs):
+                if pred_length[k] == 0:
+                    pred_len[k] = seq
+                    continue
                 pred_pose = net(index_motion[k:k+1, :int(pred_length[k].item())], type='decode')
                 cur_len = pred_pose.shape[1]
 
