@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 import shutil
 import datetime
 import os
+import math
 
 kit_bone = [[0, 11], [11, 12], [12, 13], [13, 14], [14, 15], [0, 16], [16, 17], [17, 18], [18, 19], [19, 20], [0, 1], [1, 2], [2, 3], [3, 4], [3, 5], [5, 6], [6, 7], [3, 8], [8, 9], [9, 10]]
 t2m_bone = [[0,2], [2,5],[5,8],[8,11],
@@ -251,3 +252,27 @@ def init_save_folder(args):
                 shutil.copy(f, f'{save_source}{f}')
     else:
         args.out_dir = os.path.join(args.out_dir, f'{args.exp_name}')
+
+def uniform(shape, device = None):
+    return torch.zeros(shape, device = device).float().uniform_(0, 1)
+
+def cosine_schedule(t):
+    return torch.cos(t * math.pi * 0.5)
+
+def log(t, eps = 1e-20):
+    return torch.log(t.clamp(min = eps))
+
+def gumbel_noise(t):
+    noise = torch.zeros_like(t).uniform_(0, 1)
+    return -log(-log(noise))
+
+def gumbel_sample(t, temperature = 1., dim = -1):
+    return ((t / max(temperature, 1e-10)) + gumbel_noise(t)).argmax(dim = dim)
+
+def top_k(logits, thres = 0.9):
+    # [INFO] select top 10% samples of last index by fill value to the rest as -inf
+    k = math.ceil((1 - thres) * logits.shape[-1])
+    val, ind = logits.topk(k, dim = -1)
+    probs = torch.full_like(logits, float('-inf'))
+    probs.scatter_(2, ind, val)
+    return probs

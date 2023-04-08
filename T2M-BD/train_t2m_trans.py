@@ -22,7 +22,9 @@ import warnings
 warnings.filterwarnings('ignore')
 from exit.utils import get_model, visualize_2motions
 from tqdm import tqdm
-from exit.utils import get_model, visualize_2motions, generate_src_mask, init_save_folder
+from exit.utils import get_model, visualize_2motions, generate_src_mask, init_save_folder, uniform, cosine_schedule
+from einops import rearrange, repeat
+import torch.nn.functional as F
 
 ##### ---- Exp dirs ---- #####
 args = option_trans.get_args_parser()
@@ -121,15 +123,16 @@ nb_sample_train = 0
 
 ##### ---- get code ---- #####
 ##### ---- Dataloader ---- #####
-train_loader_token = dataset_tokenize.DATALoader(args.dataname, 1, unit_length=2**args.down_t)
-for batch in train_loader_token:
-    pose, name = batch
-    bs, seq = pose.shape[0], pose.shape[1]
+if len(os.listdir(codebook_dir)) == 0:
+    train_loader_token = dataset_tokenize.DATALoader(args.dataname, 1, unit_length=2**args.down_t)
+    for batch in train_loader_token:
+        pose, name = batch
+        bs, seq = pose.shape[0], pose.shape[1]
 
-    pose = pose.cuda().float() # bs, nb_joints, joints_dim, seq_len
-    target = net(pose, type='encode')
-    target = target.cpu().numpy()
-    np.save(pjoin(codebook_dir, name[0] +'.npy'), target)
+        pose = pose.cuda().float() # bs, nb_joints, joints_dim, seq_len
+        target = net(pose, type='encode')
+        target = target.cpu().numpy()
+        np.save(pjoin(codebook_dir, name[0] +'.npy'), target)
 
 
 train_loader = dataset_TM_train.DATALoader(args.dataname, args.batch_size, args.nb_code, codebook_dir, unit_length=2**args.down_t)
@@ -144,10 +147,10 @@ best_top1=0
 best_top2=0 
 best_top3=0 
 best_matching=100 
-# pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, clip_model=clip_model, eval_wrapper=eval_wrapper)
+pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, clip_model=clip_model, eval_wrapper=eval_wrapper)
 
 # while nb_iter <= args.total_iter:
-for nb_iter in tqdm(range(1, args.total_iter + 1)):
+for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     batch = next(train_loader_iter)
     clip_text, m_tokens, m_tokens_len = batch
     m_tokens, m_tokens_len = m_tokens.cuda(), m_tokens_len.cuda()
@@ -159,32 +162,41 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
     
     feat_clip_text = clip_model(text).float()
 
-    input_index = target[:,:-1]
-
+    # [INFO] Swap input tokens
     if args.pkeep == -1:
         proba = np.random.rand(1)[0]
-        mask = torch.bernoulli(proba * torch.ones(input_index.shape,
-                                                         device=input_index.device))
+        mask = torch.bernoulli(proba * torch.ones(target.shape,
+                                                device=target.device))
     else:
-        mask = torch.bernoulli(args.pkeep * torch.ones(input_index.shape,
-                                                         device=input_index.device))
+        mask = torch.bernoulli(args.pkeep * torch.ones(target.shape,
+                                                device=target.device))
     mask = mask.round().to(dtype=torch.int64)
-    r_indices = torch.randint_like(input_index, args.nb_code)
-    a_indices = mask*input_index+(1-mask)*r_indices
+    r_indices = torch.randint_like(target, args.nb_code)
+    input_indices = mask*target+(1-mask)*r_indices
 
-    cls_pred = trans_encoder(a_indices, feat_clip_text)
-    cls_pred = cls_pred.contiguous()
+    # Time step masking
+    batch_size, max_len = target.shape[:2]
+    mask_id = get_model(net).vqvae.num_code + 2
+    rand_time = uniform((batch_size,), device = target.device)
+    rand_mask_probs = cosine_schedule(rand_time)
+    num_token_masked = (m_tokens_len * rand_mask_probs).round().clamp(min = 1)
+    seq_mask = generate_src_mask(max_len, m_tokens_len+1)
+    batch_randperm = torch.rand((batch_size, max_len), device = target.device) - seq_mask.int()
+    batch_randperm = batch_randperm.argsort(dim = -1)
+    mask_token = batch_randperm < rearrange(num_token_masked, 'b -> b 1')
+
+    masked_target = torch.where(mask_token, input=input_indices, other=-1)
+    masked_input_indices = torch.where(mask_token, mask_id, input_indices)
+
+    cls_pred = trans_encoder(masked_input_indices, feat_clip_text)[:, 1:]
 
     # [INFO] Compute xent loss as a batch
-    cb_idx_mask = generate_src_mask(target.shape[1], m_tokens_len+1)
-    cls_pred_all_masked = torch.masked_select(cls_pred, cb_idx_mask.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
-    target_all_masked = torch.masked_select(target, cb_idx_mask)
-
-    denom = torch.ones(*target.shape).cuda() * bs * (m_tokens_len+1).unsqueeze(-1)
-    denom = torch.masked_select(denom, cb_idx_mask)
-
-    loss_cls = loss_ce(cls_pred_all_masked, target_all_masked) / denom
-    loss_cls = loss_cls.sum()
+    weights = mask_token / (mask_token.sum(-1).unsqueeze(-1) * mask_token.shape[0])
+    cls_pred_all_masked = torch.masked_select(cls_pred, mask_token.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
+    target_all_masked = torch.masked_select(target, mask_token)
+    weight_all_masked = torch.masked_select(weights, mask_token)
+    loss_cls = F.cross_entropy(cls_pred_all_masked, target_all_masked, reduction = 'none')
+    loss_cls = (loss_cls * weight_all_masked).sum()
 
     # [INFO] accomulate right_num to compute Acc.
     probs = torch.softmax(cls_pred_all_masked, dim=-1)
@@ -202,7 +214,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
     scheduler.step()
 
     avg_loss_cls = avg_loss_cls + loss_cls.item()
-    nb_sample_train = nb_sample_train + (m_tokens_len + 1).sum().item()
+    nb_sample_train = nb_sample_train + mask_token.sum().item()
 
     # print('acc:', right_num * 100 / nb_sample_train)
     # nb_iter += 1

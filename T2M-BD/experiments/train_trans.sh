@@ -15,22 +15,22 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='5_Trans_100kIt_fixEval' # TEMP
+name='2_train_withEval' # TEMP
 dataset_name='kit'
 vq_name='VQVAE'
 debug='f'
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+# export CUDA_VISIBLE_DEVICES=3
 # export CUDA_LAUNCH_BLOCKING=1
 MULTI_BATCH=4
 
 python3 train_t2m_trans.py  \
     --exp-name ${name} \
     --batch-size $((128*MULTI_BATCH)) \
-    --num-layers 9 \
-    --embed-dim-gpt 1024 \
+    --num-layers 8 \
+    --embed-dim-gpt 512 \
     --nb-code 512 \
     --n-head-gpt 16 \
-    --block-size 51 \
+    --block-size 52 \
     --ff-rate 4 \
     --drop-out-rate 0.1 \
     --resume-pth output/${vq_name}/net_last.pth \

@@ -4,6 +4,8 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.distributions import Categorical
 import models.pos_encoding as pos_encoding
+from exit.utils import cosine_schedule, uniform, top_k, gumbel_sample
+from tqdm import tqdm
 
 class Text2Motion_Transformer(nn.Module):
 
@@ -40,35 +42,38 @@ class Text2Motion_Transformer(nn.Module):
         return logits
 
     def sample(self, clip_feature, if_categorial=False):
-        for k in range(self.block_size):
-            if k == 0:
-                x = []
-            else:
-                x = xs
-            logits = self.forward(x, clip_feature)
-            logits = logits[:, -1, :]
-            probs = F.softmax(logits, dim=-1)
-            if if_categorial:
-                dist = Categorical(probs)
-                idx = dist.sample()
-                # if idx == self.num_vq:
-                #     break
-                idx = idx.unsqueeze(-1)
-            else:
-                _, idx = torch.topk(probs, k=1, dim=-1)
-                # if idx[0] == self.num_vq:
-                #     break
-            # append to the sequence and continue
-            if k == 0:
-                xs = idx
-            else:
-                xs = torch.cat((xs, idx), dim=1)
-            
-            if k == self.block_size - 1:
-                return xs[:, :-1]
-        return xs
+        timesteps = 18
+        batch_size = clip_feature.shape[0]
+        mask_id = self.num_vq + 2
+        shape = (batch_size, self.block_size - 1)
+        topk_filter_thres = .9
+        starting_temperature = 1.0
+        scores = torch.zeros(shape, dtype = torch.float32, device = clip_feature.device)
+        ids = torch.full(shape, mask_id, dtype = torch.long, device = clip_feature.device)
 
-class CausalCrossConditionalSelfAttention(nn.Module):
+        for timestep, steps_until_x0 in zip(torch.linspace(0, 1, timesteps, device = clip_feature.device), 
+                                                reversed(range(timesteps))):
+            rand_mask_prob = cosine_schedule(timestep)
+            num_token_masked = max(int((rand_mask_prob * self.block_size - 1).item()), 1)
+            masked_indices = scores.topk(num_token_masked, dim = -1).indices
+
+            ids = ids.scatter(1, masked_indices, mask_id)
+            logits = self.forward(ids, clip_feature)
+            filtered_logits = top_k(logits, topk_filter_thres)
+
+            temperature = starting_temperature * (steps_until_x0 / timesteps) # temperature is annealed
+
+            # [INFO] if temperature==0: is equal to argmax (filtered_logits.argmax(dim = -1))
+            pred_ids = gumbel_sample(filtered_logits, temperature = temperature, dim = -1)[:, 1:]
+            is_mask = ids == mask_id
+            ids = torch.where(
+                        is_mask,
+                        pred_ids,
+                        ids
+                    )
+        return ids
+
+class Attention(nn.Module):
 
     def __init__(self, embed_dim=512, block_size=16, n_head=8, drop_out_rate=0.1):
         super().__init__()
@@ -82,8 +87,6 @@ class CausalCrossConditionalSelfAttention(nn.Module):
         self.resid_drop = nn.Dropout(drop_out_rate)
 
         self.proj = nn.Linear(embed_dim, embed_dim)
-        # causal mask to ensure that attention is only applied to the left in the input sequence
-        self.register_buffer("mask", torch.tril(torch.ones(block_size, block_size)).view(1, 1, block_size, block_size))
         self.n_head = n_head
 
     def forward(self, x):
@@ -95,7 +98,6 @@ class CausalCrossConditionalSelfAttention(nn.Module):
         v = self.value(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        att = att.masked_fill(self.mask[:,:,:T,:T] == 0, float('-inf'))
         att = F.softmax(att, dim=-1)
         att = self.attn_drop(att)
         y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
@@ -111,7 +113,7 @@ class Block(nn.Module):
         super().__init__()
         self.ln1 = nn.LayerNorm(embed_dim)
         self.ln2 = nn.LayerNorm(embed_dim)
-        self.attn = CausalCrossConditionalSelfAttention(embed_dim, block_size, n_head, drop_out_rate)
+        self.attn = Attention(embed_dim, block_size, n_head, drop_out_rate)
         self.mlp = nn.Sequential(
             nn.Linear(embed_dim, fc_rate * embed_dim),
             nn.GELU(),
@@ -136,7 +138,7 @@ class CrossCondTransBase(nn.Module):
                 drop_out_rate=0.1, 
                 fc_rate=4):
         super().__init__()
-        self.tok_emb = nn.Embedding(num_vq + 2, embed_dim)
+        self.tok_emb = nn.Embedding(num_vq + 3, embed_dim) # [INFO] 3 = [end_id, blank_id, mask_id]
         self.cond_emb = nn.Linear(clip_dim, embed_dim)
         self.pos_embedding = nn.Embedding(block_size, embed_dim)
         self.drop = nn.Dropout(drop_out_rate)
