@@ -225,14 +225,14 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
                 motion_annotation_list.append(em)
                 motion_pred_list.append(em_pred)
 
-                if draw:
-                    pose = val_loader.dataset.inv_transform(pose.detach().cpu().numpy())
-                    pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
+                # if draw:
+                #     pose = val_loader.dataset.inv_transform(pose.detach().cpu().numpy())
+                #     pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
 
 
-                    for j in range(min(4, bs)):
-                        draw_org.append(pose_xyz[j][:m_length[j]].unsqueeze(0))
-                        draw_text.append(clip_text[j])
+                #     for j in range(min(4, bs)):
+                #         draw_org.append(pose_xyz[j][:m_length[j]].unsqueeze(0))
+                #         draw_text.append(clip_text[j])
 
                 temp_R, temp_match = calculate_R_precision(et.cpu().numpy(), em.cpu().numpy(), top_k=3, sum_all=True)
                 R_precision_real += temp_R
@@ -273,13 +273,13 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         writer.add_scalar('./Test/matching_score', matching_score_pred, nb_iter)
 
     
-        if nb_iter % 10000 == 0 : 
-            for ii in range(4):
-                tensorborad_add_video_xyz(writer, draw_org[ii], nb_iter, tag='./Vis/org_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'gt'+str(ii)+'.gif')] if savegif else None)
+        # if nb_iter % 10000 == 0 : 
+        #     for ii in range(4):
+        #         tensorborad_add_video_xyz(writer, draw_org[ii], nb_iter, tag='./Vis/org_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'gt'+str(ii)+'.gif')] if savegif else None)
             
-        if nb_iter % 10000 == 0 : 
-            for ii in range(4):
-                tensorborad_add_video_xyz(writer, draw_pred[ii], nb_iter, tag='./Vis/pred_eval'+str(ii), nb_vis=1, title_batch=[draw_text_pred[ii]], outname=[os.path.join(out_dir, 'pred'+str(ii)+'.gif')] if savegif else None)
+        # if nb_iter % 10000 == 0 : 
+        #     for ii in range(4):
+        #         tensorborad_add_video_xyz(writer, draw_pred[ii], nb_iter, tag='./Vis/pred_eval'+str(ii), nb_vis=1, title_batch=[draw_text_pred[ii]], outname=[os.path.join(out_dir, 'pred'+str(ii)+'.gif')] if savegif else None)
 
     
     if fid < best_fid : 
@@ -318,7 +318,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         torch.save({'trans' : trans.state_dict()}, os.path.join(out_dir, 'net_last.pth'))
 
     trans.train()
-    return best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger
+    return pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger
 
 
 @torch.no_grad()        
