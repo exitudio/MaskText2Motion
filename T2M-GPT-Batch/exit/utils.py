@@ -20,6 +20,7 @@ t2m_bone = [[0,2], [2,5],[5,8],[8,11],
             [9,14],[14,17],[17,19],[19,21],
             [9,13],[13,16],[16,18],[18,20]]
 kit_kit_bone = kit_bone + (np.array(kit_bone)+21).tolist()
+t2m_t2m_bone = t2m_bone + (np.array(t2m_bone)+22).tolist()
 
 def axis_standard(skeleton):
     skeleton = skeleton.copy()
@@ -42,7 +43,12 @@ def visualize_2motions(motion1, std, mean, dataset_name, length, motion2=None, s
         joints_num = 21
         scale = 1/1000
     else:
-        raise NameError('dataset:' + dataset_name)
+        first_total_standard = 63
+        bone_link = t2m_bone
+        if motion2 is not None:
+            bone_link = t2m_t2m_bone
+        joints_num = 22
+        scale = 1#/1000
     joint1 = recover_from_ric(torch.from_numpy(motion1).float(), joints_num).numpy()
     if motion2 is not None:
         joint2 = recover_from_ric(torch.from_numpy(motion2).float(), joints_num).numpy()
@@ -258,3 +264,21 @@ def uniform(shape, device = None):
 
 def cosine_schedule(t):
     return torch.cos(t * math.pi * 0.5)
+
+def log(t, eps = 1e-20):
+    return torch.log(t.clamp(min = eps))
+
+def gumbel_noise(t):
+    noise = torch.zeros_like(t).uniform_(0, 1)
+    return -log(-log(noise))
+
+def gumbel_sample(t, temperature = 1., dim = -1):
+    return ((t / max(temperature, 1e-10)) + gumbel_noise(t)).argmax(dim = dim)
+
+def top_k(logits, thres = 0.9):
+    # [INFO] select top 10% samples of last index by fill value to the rest as -inf
+    k = math.ceil((1 - thres) * logits.shape[-1])
+    val, ind = logits.topk(k, dim = -1)
+    probs = torch.full_like(logits, float('-inf'))
+    probs.scatter_(2, ind, val)
+    return probs
