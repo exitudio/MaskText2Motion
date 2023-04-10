@@ -237,7 +237,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
             y = pred_pose_eval[i].detach().cpu().numpy()
             l = m_length[i]
             caption = clip_text[i]
-            visualize_2motions(x, val_loader.dataset.std, val_loader.dataset.mean, args.dataname, l, y, save_path=f'{args.out_dir}/html/{str(nb_iter)}_{caption}_{l}.html')
+            visualize_2motions(x, val_loader.dataset.std, val_loader.dataset.mean, args.dataname, l, y, save_path=f'{args.out_dir}/html/{str(nb_iter)}_{caption[:200]}_{l}.html')
 
     if nb_iter == args.total_iter: 
         msg_final = f"Train. Iter {best_iter} : FID. {best_fid:.5f}, Diversity. {best_div:.4f}, TOP1. {best_top1:.4f}, TOP2. {best_top2:.4f}, TOP3. {best_top3:.4f}"
