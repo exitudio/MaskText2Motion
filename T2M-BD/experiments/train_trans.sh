@@ -15,11 +15,11 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='2_train_withEval' # TEMP
-dataset_name='kit'
-vq_name='VQVAE'
+name='HML3D_1_Trans' # TEMP
+dataset_name='t2m'
+vq_name='2_VQVAE_HML3D'
 debug='f'
-# export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export CUDA_LAUNCH_BLOCKING=1
 # --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/2023-04-08-08-16-27_2_train_withEval/net_last.pth
 MULTI_BATCH=4
@@ -27,8 +27,8 @@ MULTI_BATCH=4
 python3 train_t2m_trans.py  \
     --exp-name ${name} \
     --batch-size $((128*MULTI_BATCH)) \
-    --num-layers 8 \
-    --embed-dim-gpt 512 \
+    --num-layers 9 \
+    --embed-dim-gpt 1024 \
     --nb-code 512 \
     --n-head-gpt 16 \
     --block-size 52 \

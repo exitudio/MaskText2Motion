@@ -15,9 +15,9 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-GPT
 conda activate T2M-GPT
-name='1_TRANS'
-dataset_name='kit'
-vq_name='VQVAE'
+name='HML3D_1_TRANS'
+dataset_name='t2m'
+vq_name='2_VQVAE_HML3D'
 debug='f'
 # export CUDA_VISIBLE_DEVICES=3
 python3 train_t2m_trans.py  \
