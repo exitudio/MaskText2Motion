@@ -185,7 +185,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     batch_randperm = batch_randperm.argsort(dim = -1)
     mask_token = batch_randperm < rearrange(num_token_masked, 'b -> b 1')
 
-    masked_target = torch.where(mask_token, input=input_indices, other=-1)
+    # masked_target = torch.where(mask_token, input=input_indices, other=-1)
     masked_input_indices = torch.where(mask_token, mask_id, input_indices)
 
     # , src_mask = seq_mask

@@ -6,6 +6,7 @@ from torch.distributions import Categorical
 import models.pos_encoding as pos_encoding
 from exit.utils import cosine_schedule, uniform, top_k, gumbel_sample
 from tqdm import tqdm
+from einops import rearrange, repeat
 
 class Text2Motion_Transformer(nn.Module):
 
@@ -81,6 +82,11 @@ class Text2Motion_Transformer(nn.Module):
                         pred_ids,
                         ids
                     )
+            
+            probs_without_temperature = logits.softmax(dim = -1)
+            scores = 1 - probs_without_temperature.gather(2, pred_ids[..., None])
+            scores = rearrange(scores, '... 1 -> ...')
+            scores = scores.masked_fill(~is_mask, -1e5)
         return ids
 
 class Attention(nn.Module):
