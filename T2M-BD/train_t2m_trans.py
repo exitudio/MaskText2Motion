@@ -201,7 +201,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
 
     # [INFO] accomulate right_num to compute Acc.
     probs = torch.softmax(cls_pred_all_masked, dim=-1)
-    if args.if_maxtest:
+    if True: #args.if_maxtest:
         _, cls_pred_index = torch.max(probs, dim=-1)
     else:
         dist = Categorical(probs)

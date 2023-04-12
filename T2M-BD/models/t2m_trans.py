@@ -64,18 +64,19 @@ class Text2Motion_Transformer(nn.Module):
 
         for timestep, steps_until_x0 in zip(torch.linspace(0, 1, timesteps, device = clip_feature.device), 
                                                 reversed(range(timesteps))):
+            # [INFO] get mask indices by top score?? 
             rand_mask_prob = cosine_schedule(timestep)
             num_token_masked = max(int((rand_mask_prob * self.block_size - 1).item()), 1)
             masked_indices = scores.topk(num_token_masked, dim = -1).indices
 
             ids = ids.scatter(1, masked_indices, mask_id)
-            logits = self.forward(ids, clip_feature, src_mask)
+            logits = self.forward(ids, clip_feature, src_mask)[:,1:]
             filtered_logits = top_k(logits, topk_filter_thres)
 
             temperature = starting_temperature * (steps_until_x0 / timesteps) # temperature is annealed
 
             # [INFO] if temperature==0: is equal to argmax (filtered_logits.argmax(dim = -1))
-            pred_ids = gumbel_sample(filtered_logits, temperature = temperature, dim = -1)[:, 1:]
+            pred_ids = gumbel_sample(filtered_logits, temperature = temperature, dim = -1)
             is_mask = ids == mask_id
             ids = torch.where(
                         is_mask,

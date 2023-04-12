@@ -208,6 +208,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
             # pred_length[pred_length==0] = index_motion.shape[1] # if blank_id in the first frame, set length to max
             # [INFO] need to run single sample at a time b/c it's conv
             for k in range(bs):
+                # [TODO] set len to 1 for 0 length
                 if pred_length[k] == 0:
                     pred_len[k] = seq
                     continue
