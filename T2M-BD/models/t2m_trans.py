@@ -7,6 +7,7 @@ import models.pos_encoding as pos_encoding
 from exit.utils import cosine_schedule, uniform, top_k, gumbel_sample
 from tqdm import tqdm
 from einops import rearrange, repeat
+from exit.utils import get_model, generate_src_mask
 
 class Text2Motion_Transformer(nn.Module):
 
@@ -52,7 +53,7 @@ class Text2Motion_Transformer(nn.Module):
         logits = self.trans_head(feat, src_mask)
         return logits
 
-    def sample(self, clip_feature, src_mask=None):
+    def sample(self, clip_feature, m_length=None):
         timesteps = 18
         batch_size = clip_feature.shape[0]
         mask_id = self.num_vq + 2
@@ -62,15 +63,39 @@ class Text2Motion_Transformer(nn.Module):
         scores = torch.zeros(shape, dtype = torch.float32, device = clip_feature.device)
         ids = torch.full(shape, mask_id, dtype = torch.long, device = clip_feature.device)
 
+        ### PlayGround ####
+        # score high = mask
+        m_tokens_len = torch.ceil((m_length)/4)
+        src_token_mask = generate_src_mask(self.block_size-1, m_tokens_len+1)
+
+        # # mock
+        # timestep = torch.tensor(.5)
+        # rand_mask_prob = cosine_schedule(timestep)
+        # scores = torch.arange(self.block_size - 1).repeat(batch_size, 1).cuda()
+        # scores[1] = torch.flip(torch.arange(self.block_size - 1), dims=(0,))
+
+        # # iteration
+        # num_token_masked = (rand_mask_prob * m_tokens_len).int().clip(min=1)
+        # scores[~src_token_mask] = -1e5
+        # masked_indices = scores.argsort(dim=-1, descending=True) # This is flipped the order. The highest score is the first in order.
+        # masked_indices = masked_indices < num_token_masked.unsqueeze(-1) # So it can filter out by "< num_token_masked". We want to filter the high score as a mask
+        # ids[masked_indices] = mask_id
+        #########################
+        
         for timestep, steps_until_x0 in zip(torch.linspace(0, 1, timesteps, device = clip_feature.device), 
                                                 reversed(range(timesteps))):
             # [INFO] get mask indices by top score?? 
             rand_mask_prob = cosine_schedule(timestep)
-            num_token_masked = max(int((rand_mask_prob * self.block_size - 1).item()), 1)
-            masked_indices = scores.topk(num_token_masked, dim = -1).indices
+            # [TODO] Why min=1 for the last
+            num_token_masked = (rand_mask_prob * m_tokens_len).int().clip(min=1)
+            # [INFO] rm no motion frames
+            scores[~src_token_mask] = -1e5
+            sorted, index = scores.sort(descending=True)
+            ids[index < num_token_masked.unsqueeze(-1)] = mask_id
+            # if torch.isclose(timestep, torch.tensor(0.7647), atol=.01):
+            #     print('masked_indices:', ids[0], src_token_mask[0])
 
-            ids = ids.scatter(1, masked_indices, mask_id)
-            logits = self.forward(ids, clip_feature, src_mask)[:,1:]
+            logits = self.forward(ids, clip_feature, src_token_mask)[:,1:]
             filtered_logits = top_k(logits, topk_filter_thres)
 
             temperature = starting_temperature * (steps_until_x0 / timesteps) # temperature is annealed
@@ -84,6 +109,8 @@ class Text2Motion_Transformer(nn.Module):
                         ids
                     )
             
+            # if timestep == 1.:
+            #     print(is_mask.sum())
             probs_without_temperature = logits.softmax(dim = -1)
             scores = 1 - probs_without_temperature.gather(2, pred_ids[..., None])
             scores = rearrange(scores, '... 1 -> ...')

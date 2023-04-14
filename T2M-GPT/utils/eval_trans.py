@@ -7,6 +7,7 @@ from scipy import linalg
 
 import visualization.plot_3d_global as plot_3d
 from utils.motion_process import recover_from_ric
+from tqdm import tqdm
 
 
 def tensorborad_add_video_xyz(writer, xyz, nb_iter, tag, nb_vis=4, title_batch=None, outname=None):
@@ -183,7 +184,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
 
     nb_sample = 0
     for i in range(1):
-        for batch in val_loader:
+        for batch in tqdm(val_loader):
             word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token, name = batch
 
             bs, seq = pose.shape[:2]

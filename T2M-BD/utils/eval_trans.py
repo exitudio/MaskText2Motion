@@ -198,8 +198,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
             pred_pose_eval = torch.zeros((bs, seq, pose.shape[-1])).cuda()
             pred_len = torch.ones(bs).long()
 
-            src_mask = None #generate_src_mask(get_model(trans).block_size-1, m_length+1)
-            index_motion = trans(feat_clip_text, type="sample", src_mask=src_mask)
+            index_motion = trans(feat_clip_text, type="sample", m_length=m_length.cuda())
             # [INFO] 1. this get the last index of blank_id
             # pred_length = (index_motion == blank_id).int().argmax(1).float()
             # [INFO] 2. this get the first index of blank_id
