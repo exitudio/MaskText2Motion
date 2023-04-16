@@ -34,7 +34,7 @@ torch.manual_seed(args.seed)
 init_save_folder(args)
 
 # [TODO] make the 'output/' folder as arg
-args.vq_dir= f'output/{args.vq_name}' #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
+args.vq_dir= f'output/{args.dataname}/{args.vq_name}' #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
 codebook_dir = f'{args.vq_dir}/codebook/'
 os.makedirs(args.vq_dir, exist_ok = True)
 os.makedirs(codebook_dir, exist_ok = True)
@@ -117,10 +117,6 @@ scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_s
 ##### ---- Optimization goals ---- #####
 loss_ce = torch.nn.CrossEntropyLoss(reduction='none')
 
-nb_iter, avg_loss_cls, avg_acc = 0, 0., 0.
-right_num = 0
-nb_sample_train = 0
-
 ##### ---- get code ---- #####
 ##### ---- Dataloader ---- #####
 if len(os.listdir(codebook_dir)) == 0:
@@ -148,6 +144,14 @@ best_top2=0
 best_top3=0 
 best_matching=100 
 # pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, clip_model=clip_model, eval_wrapper=eval_wrapper)
+
+def get_acc(cls_pred, target, mask):
+    cls_pred = torch.masked_select(cls_pred, mask.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
+    target_all = torch.masked_select(target, mask)
+    probs = torch.softmax(cls_pred, dim=-1)
+    _, cls_pred_index = torch.max(probs, dim=-1)
+    right_num = (cls_pred_index == target_all).sum()
+    return right_num*100/mask.sum()
 
 # while nb_iter <= args.total_iter:
 for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
@@ -188,25 +192,15 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     # masked_target = torch.where(mask_token, input=input_indices, other=-1)
     masked_input_indices = torch.where(mask_token, mask_id, input_indices)
 
-    # , src_mask = seq_mask
-    cls_pred = trans_encoder(masked_input_indices, feat_clip_text)[:, 1:]
+    cls_pred = trans_encoder(masked_input_indices, feat_clip_text, src_mask = seq_mask)[:, 1:]
 
     # [INFO] Compute xent loss as a batch
-    weights = mask_token / (mask_token.sum(-1).unsqueeze(-1) * mask_token.shape[0])
-    cls_pred_all_masked = torch.masked_select(cls_pred, mask_token.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
-    target_all_masked = torch.masked_select(target, mask_token)
-    weight_all_masked = torch.masked_select(weights, mask_token)
-    loss_cls = F.cross_entropy(cls_pred_all_masked, target_all_masked, reduction = 'none')
-    loss_cls = (loss_cls * weight_all_masked).sum()
-
-    # [INFO] accomulate right_num to compute Acc.
-    probs = torch.softmax(cls_pred_all_masked, dim=-1)
-    if True: #args.if_maxtest:
-        _, cls_pred_index = torch.max(probs, dim=-1)
-    else:
-        dist = Categorical(probs)
-        cls_pred_index = dist.sample()
-    right_num += (cls_pred_index == target_all_masked).sum().item()
+    weights = seq_mask / (seq_mask.sum(-1).unsqueeze(-1) * seq_mask.shape[0])
+    cls_pred_seq_masked = torch.masked_select(cls_pred, seq_mask.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
+    target_seq_masked = torch.masked_select(target, seq_mask)
+    weight_seq_masked = torch.masked_select(weights, seq_mask)
+    loss_cls = F.cross_entropy(cls_pred_seq_masked, target_seq_masked, reduction = 'none')
+    loss_cls = (loss_cls * weight_seq_masked).sum()
 
     ## global loss
     optimizer.zero_grad()
@@ -214,21 +208,22 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     optimizer.step()
     scheduler.step()
 
-    avg_loss_cls = avg_loss_cls + loss_cls.item()
-    nb_sample_train = nb_sample_train + mask_token.sum().item()
-
-    # print('acc:', right_num * 100 / nb_sample_train)
-    # nb_iter += 1
     if nb_iter % args.print_iter ==  0 :
-        avg_loss_cls = avg_loss_cls / args.print_iter
-        avg_acc = right_num * 100 / nb_sample_train
-        writer.add_scalar('./Loss/train', avg_loss_cls, nb_iter)
-        writer.add_scalar('./ACC/train', avg_acc, nb_iter)
-        msg = f"Train. Iter {nb_iter} : Loss. {avg_loss_cls:.5f}, ACC. {avg_acc:.4f}"
-        logger.info(msg)
-        avg_loss_cls = 0.
-        right_num = 0
-        nb_sample_train = 0
+        probs_seq_masked = torch.softmax(cls_pred_seq_masked, dim=-1)
+        _, cls_pred_seq_masked_index = torch.max(probs_seq_masked, dim=-1)
+        target_seq_masked = torch.masked_select(target, seq_mask)
+        right_seq_masked = (cls_pred_seq_masked_index == target_seq_masked).sum()
+
+        writer.add_scalar('./Loss/all', loss_cls, nb_iter)
+        writer.add_scalar('./ACC/every_token', right_seq_masked*100/seq_mask.sum(), nb_iter)
+        
+        # [INFO] log mask/nomask separately
+        no_mask_token = ~mask_token * seq_mask
+        writer.add_scalar('./ACC/masked', get_acc(cls_pred, target, mask_token), nb_iter)
+        writer.add_scalar('./ACC/no_masked', get_acc(cls_pred, target, no_mask_token), nb_iter)
+
+        # msg = f"Train. Iter {nb_iter} : Loss. {avg_loss_cls:.5f}, ACC. {avg_acc:.4f}"
+        # logger.info(msg)
 
     if nb_iter==0 or nb_iter % args.eval_iter ==  0:
         pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model=clip_model, eval_wrapper=eval_wrapper)

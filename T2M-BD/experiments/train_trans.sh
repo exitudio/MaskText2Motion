@@ -1,9 +1,9 @@
 #!/bin/sh
 # cd /users/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
 # sbatch train_trans.sh
-# screen -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
+# screen -L -Logfile HML3D_11_lossAllTokenAtOnce -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
 
-#SBATCH --job-name=trans4gpu
+#SBATCH --job-name=HML3D_11_lossAllTokenAtOnce
 #SBATCH --partition=GPU
 #SBATCH --gres=gpu:4
 #SBATCH --nodes=1
@@ -15,9 +15,9 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='HML3D_1_Trans' # TEMP
+name='HML3D_11_lossAllTokenAtOnce' # TEMP
 dataset_name='t2m'
-vq_name='2_VQVAE_HML3D'
+vq_name='VQVAE_official_pretrain'
 debug='f'
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export CUDA_LAUNCH_BLOCKING=1
@@ -27,16 +27,16 @@ MULTI_BATCH=4
 python3 train_t2m_trans.py  \
     --exp-name ${name} \
     --batch-size $((128*MULTI_BATCH)) \
-    --num-layers 9 \
-    --embed-dim-gpt 1024 \
+    --num-layers 8 \
+    --embed-dim-gpt 512 \
     --nb-code 512 \
     --n-head-gpt 16 \
     --block-size 52 \
     --ff-rate 4 \
     --drop-out-rate 0.1 \
-    --resume-pth output/${vq_name}/net_last.pth \
+    --resume-pth output/${dataset_name}/${vq_name}/net_best_fid.pth \
     --vq-name ${vq_name} \
-    --out-dir output \
+    --out-dir output/${dataset_name} \
     --total-iter $((300000/MULTI_BATCH)) \
     --lr-scheduler $((150000/MULTI_BATCH)) \
     --lr 0.0001 \

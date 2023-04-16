@@ -57,16 +57,26 @@ class Text2Motion_Transformer(nn.Module):
         timesteps = 18
         batch_size = clip_feature.shape[0]
         mask_id = self.num_vq + 2
+        pad_id = self.num_vq + 1
+        end_id = self.num_vq
         shape = (batch_size, self.block_size - 1)
         topk_filter_thres = .9
         starting_temperature = 1.0
         scores = torch.zeros(shape, dtype = torch.float32, device = clip_feature.device)
+        
+        m_tokens_len = torch.ceil((m_length)/4)
+        src_token_mask = generate_src_mask(self.block_size-1, m_tokens_len+1)
+        src_token_mask_noend = generate_src_mask(self.block_size-1, m_tokens_len)
         ids = torch.full(shape, mask_id, dtype = torch.long, device = clip_feature.device)
+        
+        # [TODO] confirm that these 2 lines are not neccessary (repeated below and maybe don't need them at all)
+        ids[~src_token_mask] = pad_id # [INFO] replace with pad id
+        ids.scatter_(-1, m_tokens_len[..., None].long(), pad_id) # [INFO] replace with end id
 
         ### PlayGround ####
         # score high = mask
-        m_tokens_len = torch.ceil((m_length)/4)
-        src_token_mask = generate_src_mask(self.block_size-1, m_tokens_len+1)
+        # m_tokens_len = torch.ceil((m_length)/4)
+        # src_token_mask = generate_src_mask(self.block_size-1, m_tokens_len+1)
 
         # # mock
         # timestep = torch.tensor(.5)
@@ -89,8 +99,10 @@ class Text2Motion_Transformer(nn.Module):
             # [TODO] Why min=1 for the last
             num_token_masked = (rand_mask_prob * m_tokens_len).int().clip(min=1)
             # [INFO] rm no motion frames
-            scores[~src_token_mask] = -1e5
+            scores[~src_token_mask_noend] = -1e5
             sorted, index = scores.sort(descending=True)
+            ids[~src_token_mask] = pad_id # [INFO] replace with pad id
+            ids.scatter_(-1, m_tokens_len[..., None].long(), end_id) # [INFO] replace with end id
             ids[index < num_token_masked.unsqueeze(-1)] = mask_id
             # if torch.isclose(timestep, torch.tensor(0.7647), atol=.01):
             #     print('masked_indices:', ids[0], src_token_mask[0])
@@ -101,8 +113,14 @@ class Text2Motion_Transformer(nn.Module):
             temperature = starting_temperature * (steps_until_x0 / timesteps) # temperature is annealed
 
             # [INFO] if temperature==0: is equal to argmax (filtered_logits.argmax(dim = -1))
+            # pred_ids = filtered_logits.argmax(dim = -1)
             pred_ids = gumbel_sample(filtered_logits, temperature = temperature, dim = -1)
             is_mask = ids == mask_id
+            
+            # mid = is_mask[0][:m_tokens_len[0].int()]
+            # mid = mid.nonzero(as_tuple=True)[0]
+            # print(is_mask[0].sum(), m_tokens_len[0])
+
             ids = torch.where(
                         is_mask,
                         pred_ids,
@@ -110,7 +128,7 @@ class Text2Motion_Transformer(nn.Module):
                     )
             
             # if timestep == 1.:
-            #     print(is_mask.sum())
+            #     print(probs_without_temperature.shape)
             probs_without_temperature = logits.softmax(dim = -1)
             scores = 1 - probs_without_temperature.gather(2, pred_ids[..., None])
             scores = rearrange(scores, '... 1 -> ...')
