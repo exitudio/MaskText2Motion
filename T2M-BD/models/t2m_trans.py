@@ -97,13 +97,17 @@ class Text2Motion_Transformer(nn.Module):
             # [INFO] get mask indices by top score?? 
             rand_mask_prob = cosine_schedule(timestep)
             # [TODO] Why min=1 for the last
-            num_token_masked = (rand_mask_prob * m_tokens_len).int().clip(min=1)
+            num_token_masked = (rand_mask_prob * m_tokens_len).long().clip(min=1)
             # [INFO] rm no motion frames
             scores[~src_token_mask_noend] = -1e5
             sorted, index = scores.sort(descending=True)
             ids[~src_token_mask] = pad_id # [INFO] replace with pad id
             ids.scatter_(-1, m_tokens_len[..., None].long(), end_id) # [INFO] replace with end id
-            ids[index < num_token_masked.unsqueeze(-1)] = mask_id
+            ## [INFO] Replace "mast_id" to "ids" that have highest "num_token_masked" "scores" 
+            index_select = generate_src_mask(index.shape[1], num_token_masked)
+            last_index = index.gather(-1, num_token_masked.unsqueeze(-1)-1)
+            temp_indx = index * index_select + (last_index*~index_select)
+            ids.scatter_(-1, temp_indx, mask_id)
             # if torch.isclose(timestep, torch.tensor(0.7647), atol=.01):
             #     print('masked_indices:', ids[0], src_token_mask[0])
 

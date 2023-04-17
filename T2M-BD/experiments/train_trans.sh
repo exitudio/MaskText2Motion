@@ -1,6 +1,8 @@
 #!/bin/sh
 # cd /users/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
 # sbatch train_trans.sh
+
+# cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
 # screen -L -Logfile HML3D_11_lossAllTokenAtOnce -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
 
 #SBATCH --job-name=HML3D_11_lossAllTokenAtOnce
