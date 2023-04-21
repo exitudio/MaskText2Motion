@@ -96,25 +96,24 @@ class Text2Motion_Transformer(nn.Module):
                                                 reversed(range(timesteps))):
             # [INFO] get mask indices by top score?? 
             rand_mask_prob = cosine_schedule(timestep)
-            # [TODO] Why min=1 for the last
             num_token_masked = (rand_mask_prob * m_tokens_len).long().clip(min=1)
             # [INFO] rm no motion frames
             scores[~src_token_mask_noend] = -1e5
-            sorted, index = scores.sort(descending=True)
+            sorted, sorted_score_indices = scores.sort(descending=True)
             ids[~src_token_mask] = pad_id # [INFO] replace with pad id
             ids.scatter_(-1, m_tokens_len[..., None].long(), end_id) # [INFO] replace with end id
-            ## [INFO] Replace "mast_id" to "ids" that have highest "num_token_masked" "scores" 
-            index_select = generate_src_mask(index.shape[1], num_token_masked)
-            last_index = index.gather(-1, num_token_masked.unsqueeze(-1)-1)
-            temp_indx = index * index_select + (last_index*~index_select)
-            ids.scatter_(-1, temp_indx, mask_id)
+            ## [INFO] Replace "mask_id" to "ids" that have highest "num_token_masked" "scores" 
+            select_masked_indices = generate_src_mask(sorted_score_indices.shape[1], num_token_masked)
+            # [INFO] add one more index for the end_id places
+            last_index = sorted_score_indices.gather(-1, num_token_masked.unsqueeze(-1)-1)
+            sorted_score_indices = sorted_score_indices * select_masked_indices + (last_index*~select_masked_indices)
+            ids.scatter_(-1, sorted_score_indices, mask_id)
             # if torch.isclose(timestep, torch.tensor(0.7647), atol=.01):
             #     print('masked_indices:', ids[0], src_token_mask[0])
 
             logits = self.forward(ids, clip_feature, src_token_mask)[:,1:]
-            filtered_logits = top_k(logits, topk_filter_thres)
-
-            temperature = starting_temperature * (steps_until_x0 / timesteps) # temperature is annealed
+            filtered_logits = logits #top_k(logits, topk_filter_thres)
+            temperature = 1 #starting_temperature * (steps_until_x0 / timesteps) # temperature is annealed
 
             # [INFO] if temperature==0: is equal to argmax (filtered_logits.argmax(dim = -1))
             # pred_ids = filtered_logits.argmax(dim = -1)
@@ -134,7 +133,7 @@ class Text2Motion_Transformer(nn.Module):
             # if timestep == 1.:
             #     print(probs_without_temperature.shape)
             probs_without_temperature = logits.softmax(dim = -1)
-            scores = 1 - probs_without_temperature.gather(2, pred_ids[..., None])
+            scores = 1 - probs_without_temperature.gather(-1, pred_ids[..., None])
             scores = rearrange(scores, '... 1 -> ...')
             scores = scores.masked_fill(~is_mask, -1e5)
         return ids

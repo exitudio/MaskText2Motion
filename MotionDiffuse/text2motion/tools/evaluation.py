@@ -288,6 +288,7 @@ if __name__ == '__main__':
     eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
 
     opt = get_opt(opt_path, device)
+    opt.debug = debug=='t'
     log_file = f'./{opt.checkpoints_dir}/{opt.dataset_name}/{opt.name}/t2m_evaluation.log'
     opt = overwrite_opt(opt)
     encoder = build_models(opt, opt.dim_pose)

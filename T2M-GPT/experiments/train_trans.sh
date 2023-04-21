@@ -8,7 +8,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
-#SBATCH --mem=64gb
+#SBATCH --mem=128gb
 #SBATCH --time=109:30:00
 #SBATCH --output=%x.%j.out
 
@@ -30,7 +30,7 @@ python3 train_t2m_trans.py  \
     --block-size 51 \
     --ff-rate 4 \
     --drop-out-rate 0.1 \
-    --resume-pth output/${vq_name}/net_last.pth \
+    --resume-pth pretrained/VQVAE/net_last.pth \
     --vq-name ${vq_name} \
     --out-dir output \
     --total-iter 300000 \

@@ -166,7 +166,7 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
 
 
 @torch.no_grad()        
-def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, draw = True, save = True, savegif=False) : 
+def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, draw = True, save = True, savegif=False, num_repeat=1) : 
 
     trans.eval()
     nb_sample = 0
@@ -178,6 +178,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
 
     motion_annotation_list = []
     motion_pred_list = []
+    motion_multimodality = []
     R_precision_real = 0
     R_precision = 0
     matching_score_real = 0
@@ -185,16 +186,18 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
 
     nb_sample = 0
     blank_id = get_model(trans).num_vq
-    for i in range(1):
-        for batch in tqdm(val_loader):
-            word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token, name = batch
+    for batch in tqdm(val_loader):
+        word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token, name = batch
 
-            bs, seq = pose.shape[:2]
-            num_joints = 21 if pose.shape[-1] == 251 else 22
-            
-            text = clip.tokenize(clip_text, truncate=True).cuda()
+        bs, seq = pose.shape[:2]
+        num_joints = 21 if pose.shape[-1] == 251 else 22
+        
+        text = clip.tokenize(clip_text, truncate=True).cuda()
 
-            feat_clip_text = clip_model(text).float()
+        feat_clip_text = clip_model(text).float()
+        
+        motion_multimodality_batch = []
+        for i in range(num_repeat):
             pred_pose_eval = torch.zeros((bs, seq, pose.shape[-1])).cuda()
             pred_len = torch.ones(bs).long()
 
@@ -217,6 +220,8 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
                 pred_len[k] = min(cur_len, seq)
                 pred_pose_eval[k:k+1, :cur_len] = pred_pose[:, :seq]
             et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, pred_len)
+            
+            motion_multimodality_batch.append(em_pred.reshape(bs, 1, -1))
             
             if i == 0:
                 pose = pose.cuda().float()
@@ -242,6 +247,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
                 matching_score_pred += temp_match
 
                 nb_sample += bs
+        motion_multimodality.append(torch.cat(motion_multimodality_batch, dim=1))
 
     motion_annotation_np = torch.cat(motion_annotation_list, dim=0).cpu().numpy()
     motion_pred_np = torch.cat(motion_pred_list, dim=0).cpu().numpy()
@@ -257,10 +263,22 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
     matching_score_real = matching_score_real / nb_sample
     matching_score_pred = matching_score_pred / nb_sample
 
+    multimodality = 0
+    motion_multimodality = torch.cat(motion_multimodality, dim=0).cpu().numpy()
+    if num_repeat > 1:
+        multimodality = calculate_multimodality(motion_multimodality, 10)
 
     fid = calculate_frechet_distance(gt_mu, gt_cov, mu, cov)
 
-    msg = f"--> \t Eva. Iter {nb_iter} :, FID. {fid:.4f}, Diversity Real. {diversity_real:.4f}, Diversity. {diversity:.4f}, R_precision_real. {R_precision_real}, R_precision. {R_precision}, matching_score_real. {matching_score_real}, matching_score_pred. {matching_score_pred}"
+    msg = f"--> \t Eva. Iter {nb_iter} :, \n\
+                FID. {fid:.4f} , \n\
+                Diversity Real. {diversity_real:.4f}, \n\
+                Diversity. {diversity:.4f}, \n\
+                R_precision_real. {R_precision_real}, \n\
+                R_precision. {R_precision}, \n\
+                matching_score_real. {matching_score_real}, \n\
+                matching_score_pred. {matching_score_pred}, \n\
+                multimodality. {multimodality:.4f}"
     logger.info(msg)
     
     
@@ -271,6 +289,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         writer.add_scalar('./Test/top2', R_precision[1], nb_iter)
         writer.add_scalar('./Test/top3', R_precision[2], nb_iter)
         writer.add_scalar('./Test/matching_score', matching_score_pred, nb_iter)
+        writer.add_scalar('./Test/multimodality', multimodality, nb_iter)
 
         # if nb_iter % 10000 == 0 : 
         #     for ii in range(4):
