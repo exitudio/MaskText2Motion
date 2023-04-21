@@ -8,7 +8,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
-#SBATCH --mem=64gb
+#SBATCH --mem=128gb
 #SBATCH --time=109:30:00
 #SBATCH --output=%x.%j.out
 
