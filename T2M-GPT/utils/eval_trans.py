@@ -344,7 +344,8 @@ def evaluation_transformer_test(out_dir, val_loader, net, trans, logger, writer,
 
     nb_sample = 0
     
-    for batch in val_loader:
+    from tqdm import tqdm
+    for batch in tqdm(val_loader):
 
         word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token, name = batch
         bs, seq = pose.shape[:2]
@@ -354,7 +355,7 @@ def evaluation_transformer_test(out_dir, val_loader, net, trans, logger, writer,
 
         feat_clip_text = clip_model.encode_text(text).float()
         motion_multimodality_batch = []
-        for i in range(30):
+        for i in tqdm(range(30)):
             pred_pose_eval = torch.zeros((bs, seq, pose.shape[-1])).cuda()
             pred_len = torch.ones(bs).long()
             
