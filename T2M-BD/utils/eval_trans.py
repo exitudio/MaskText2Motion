@@ -335,7 +335,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         torch.save({'trans' : get_model(trans).state_dict()}, os.path.join(out_dir, 'net_last.pth'))
 
     trans.train()
-    return pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger
+    return pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, multimodality, writer, logger
 
 
 @torch.no_grad()        

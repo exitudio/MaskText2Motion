@@ -53,7 +53,7 @@ class Text2Motion_Transformer(nn.Module):
         logits = self.trans_head(feat, src_mask)
         return logits
 
-    def sample(self, clip_feature, m_length=None):
+    def sample(self, clip_feature, m_length=None, if_test=False):
         timesteps = 18
         batch_size = clip_feature.shape[0]
         mask_id = self.num_vq + 2
@@ -71,7 +71,7 @@ class Text2Motion_Transformer(nn.Module):
         
         # [TODO] confirm that these 2 lines are not neccessary (repeated below and maybe don't need them at all)
         ids[~src_token_mask] = pad_id # [INFO] replace with pad id
-        ids.scatter_(-1, m_tokens_len[..., None].long(), pad_id) # [INFO] replace with end id
+        ids.scatter_(-1, m_tokens_len[..., None].long(), end_id) # [INFO] replace with end id
 
         ### PlayGround ####
         # score high = mask
@@ -91,7 +91,7 @@ class Text2Motion_Transformer(nn.Module):
         # masked_indices = masked_indices < num_token_masked.unsqueeze(-1) # So it can filter out by "< num_token_masked". We want to filter the high score as a mask
         # ids[masked_indices] = mask_id
         #########################
-        
+        temp = []
         for timestep, steps_until_x0 in zip(torch.linspace(0, 1, timesteps, device = clip_feature.device), 
                                                 reversed(range(timesteps))):
             # [INFO] get mask indices by top score?? 
@@ -119,6 +119,7 @@ class Text2Motion_Transformer(nn.Module):
             # pred_ids = filtered_logits.argmax(dim = -1)
             pred_ids = gumbel_sample(filtered_logits, temperature = temperature, dim = -1)
             is_mask = ids == mask_id
+            temp.append(is_mask[0].unsqueeze(0))
             
             # mid = is_mask[0][:m_tokens_len[0].int()]
             # mid = mid.nonzero(as_tuple=True)[0]
@@ -136,6 +137,8 @@ class Text2Motion_Transformer(nn.Module):
             scores = 1 - probs_without_temperature.gather(-1, pred_ids[..., None])
             scores = rearrange(scores, '... 1 -> ...')
             scores = scores.masked_fill(~is_mask, -1e5)
+        if if_test:
+            return ids, temp
         return ids
 
 class Attention(nn.Module):

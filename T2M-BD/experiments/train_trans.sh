@@ -1,7 +1,6 @@
 #!/bin/sh
 # cd /users/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
 # sbatch train_trans.sh
-# screen -L -Logfile HML3D_17_lossAllToken_vqLast_small -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
 
 # cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
 # screen -L -Logfile HML3D_17_lossAllToken_vqLast_small -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh

@@ -38,13 +38,21 @@ wrapper_opt = get_opt(dataset_opt_path, torch.device('cuda'))
 eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
 
 ##### ---- Network ---- #####
-
-## load clip model and datasets
 clip_model, clip_preprocess = clip.load("ViT-B/32", device=torch.device('cuda'), jit=False)  # Must set jit=False for training
 clip.model.convert_weights(clip_model)  # Actually this line is unnecessary since clip by default already on float16
 clip_model.eval()
 for p in clip_model.parameters():
     p.requires_grad = False
+
+# https://github.com/openai/CLIP/issues/111
+class TextCLIP(torch.nn.Module):
+    def __init__(self, model) :
+        super(TextCLIP, self).__init__()
+        self.model = model
+        
+    def forward(self,text):
+        return self.model.encode_text(text)
+clip_model = TextCLIP(clip_model)
 
 net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
                        args.nb_code,
@@ -90,9 +98,10 @@ matching = []
 multi = []
 repeat_time = 20
 
-        
-for i in range(repeat_time):
-    best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, best_multi, writer, logger = eval_trans.evaluation_transformer_test(args.out_dir, val_loader, net, trans_encoder, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, best_multi=0, clip_model=clip_model, eval_wrapper=eval_wrapper, draw=False, savegif=False, save=False, savenpy=(i==0))
+from tqdm import tqdm
+for i in tqdm(range(repeat_time)):
+    pred_pose_eval, pose, m_length, clip_text, \
+    best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, best_multi, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=0, clip_model=clip_model, eval_wrapper=eval_wrapper, num_repeat=30)
     fid.append(best_fid)
     div.append(best_div)
     top1.append(best_top1)
