@@ -175,9 +175,9 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     else:
         mask = torch.bernoulli(args.pkeep * torch.ones(target.shape,
                                                 device=target.device))
-    # random only motion token (not pad token). This shouldn't matter, as src_mask will filter out.
+    # random only motion token (not pad token). To prevent pad token got mixed up.
     seq_mask_no_end = generate_src_mask(max_len, m_tokens_len)
-    mask = ((mask + (~seq_mask_no_end)) > 0).int()
+    mask = torch.logical_or(mask, ~seq_mask_no_end).int()
     r_indices = torch.randint_like(target, args.nb_code)
     input_indices = mask*target+(1-mask)*r_indices
 
