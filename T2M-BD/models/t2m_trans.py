@@ -54,7 +54,8 @@ class Text2Motion_Transformer(nn.Module):
         return logits
 
     def sample(self, clip_feature, m_length=None, if_test=False):
-        timesteps = 18
+        max_steps = 18
+        max_length = 50
         batch_size = clip_feature.shape[0]
         mask_id = self.num_vq + 2
         pad_id = self.num_vq + 1
@@ -92,9 +93,9 @@ class Text2Motion_Transformer(nn.Module):
         # ids[masked_indices] = mask_id
         #########################
         temp = []
-        for timestep, steps_until_x0 in zip(torch.linspace(0, 1, timesteps, device = clip_feature.device), 
-                                                reversed(range(timesteps))):
-            # [INFO] get mask indices by top score?? 
+        for step in range(max_steps):
+            sample_max_steps = torch.round(max_steps/max_length*m_tokens_len)
+            timestep = torch.clip(step/(sample_max_steps-1), max=1)
             rand_mask_prob = cosine_schedule(timestep)
             num_token_masked = (rand_mask_prob * m_tokens_len).long().clip(min=1)
             # [INFO] rm no motion frames
