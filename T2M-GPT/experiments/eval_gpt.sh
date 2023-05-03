@@ -2,7 +2,7 @@
 # cd /users/epinyoan/git/MaskText2Motion/T2M-GPT/experiments/
 # sbatch eval_gpt.sh
 # cd /home/epinyoan/git/MaskText2Motion/T2M-GPT/experiments/
-# screen -L -Logfile HML3D_VQVAE_official_last ~/git/MaskText2Motion/T2M-GPT/experiments/eval_gpt.sh
+# screen -L -Logfile HML3D_2_eval_gpt_2 ~/git/MaskText2Motion/T2M-GPT/experiments/eval_gpt.sh
 
 #SBATCH --job-name=evalgpt
 #SBATCH --partition=GPU
@@ -16,10 +16,10 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-GPT
 conda activate T2M-GPT
-name='HML3D_eval_gpt' # TEMP
+name='HML3D_2_eval_gpt_2' # TEMP
 dataset_name='t2m'
 debug='f'
-export CUDA_VISIBLE_DEVICES=5
+export CUDA_VISIBLE_DEVICES=7
 # export CUDA_LAUNCH_BLOCKING=1
 
 python3 GPT_eval_multi.py  \

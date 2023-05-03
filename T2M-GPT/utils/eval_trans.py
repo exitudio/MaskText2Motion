@@ -355,7 +355,7 @@ def evaluation_transformer_test(out_dir, val_loader, net, trans, logger, writer,
 
         feat_clip_text = clip_model.encode_text(text).float()
         motion_multimodality_batch = []
-        for i in tqdm(range(30)):
+        for i in range(30):
             pred_pose_eval = torch.zeros((bs, seq, pose.shape[-1])).cuda()
             pred_len = torch.ones(bs).long()
             
@@ -401,7 +401,7 @@ def evaluation_transformer_test(out_dir, val_loader, net, trans, logger, writer,
 
                     if savenpy:
                         for j in range(bs):
-                            np.save(os.path.join(out_dir, name[j]+'_gt.npy'), pose_xyz[j][:m_length[j]].unsqueeze(0).cpu().numpy())
+                            np.save(os.path.join(out_dir+'/npy', name[j]+'_gt.npy'), pose_xyz[j][:m_length[j]].unsqueeze(0).cpu().numpy())
 
                     if draw:
                         for j in range(bs):
