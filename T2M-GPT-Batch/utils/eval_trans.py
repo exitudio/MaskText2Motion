@@ -341,7 +341,9 @@ def evaluation_transformer_test(out_dir, val_loader, net, trans, logger, writer,
 
     nb_sample = 0
     
-    for batch in val_loader:
+    blank_id = get_model(trans).num_vq
+    from tqdm import tqdm
+    for batch in tqdm(val_loader):
 
         word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token, name = batch
         bs, seq = pose.shape[:2]
@@ -355,13 +357,14 @@ def evaluation_transformer_test(out_dir, val_loader, net, trans, logger, writer,
             pred_pose_eval = torch.zeros((bs, seq, pose.shape[-1])).cuda()
             pred_len = torch.ones(bs).long()
             
+            index_motion = trans(feat_clip_text, True, type="sample")
+            pred_length = (index_motion >= blank_id).int()
+            pred_length = torch.topk(pred_length, k=1, dim=1).indices.squeeze().float()
             for k in range(bs):
-                try:
-                    index_motion = trans.sample(feat_clip_text[k:k+1], True)
-                except:
-                    index_motion = torch.ones(1,1).cuda().long()
-
-                pred_pose = net.forward_decoder(index_motion)
+                if pred_length[k] == 0:
+                    pred_len[k] = seq
+                    continue
+                pred_pose = net(index_motion[k:k+1, :int(pred_length[k].item())], type='decode')
                 cur_len = pred_pose.shape[1]
 
                 pred_len[k] = min(cur_len, seq)
@@ -372,7 +375,7 @@ def evaluation_transformer_test(out_dir, val_loader, net, trans, logger, writer,
                     pred_xyz = recover_from_ric(torch.from_numpy(pred_denorm).float().cuda(), num_joints)
 
                     if savenpy:
-                        np.save(os.path.join(out_dir, name[k]+'_pred.npy'), pred_xyz.detach().cpu().numpy())
+                        np.save(os.path.join(out_dir+'/npy', name[k]+'_pred.npy'), pred_xyz.detach().cpu().numpy())
 
                     if draw:
                         if i == 0:
@@ -397,7 +400,7 @@ def evaluation_transformer_test(out_dir, val_loader, net, trans, logger, writer,
 
                     if savenpy:
                         for j in range(bs):
-                            np.save(os.path.join(out_dir, name[j]+'_gt.npy'), pose_xyz[j][:m_length[j]].unsqueeze(0).cpu().numpy())
+                            np.save(os.path.join(out_dir+'/npy', name[j]+'_gt.npy'), pose_xyz[j][:m_length[j]].unsqueeze(0).cpu().numpy())
 
                     if draw:
                         for j in range(bs):

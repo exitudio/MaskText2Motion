@@ -22,6 +22,7 @@ torch.manual_seed(args.seed)
 
 args.out_dir = os.path.join(args.out_dir, f'{args.exp_name}')
 os.makedirs(args.out_dir, exist_ok = True)
+os.makedirs(args.out_dir+'/npy', exist_ok = True)
 
 ##### ---- Logger ---- #####
 logger = utils_model.get_logger(args.out_dir)
@@ -100,6 +101,13 @@ for i in tqdm(range(repeat_time)):
     top3.append(best_top3)
     matching.append(best_matching)
     multi.append(best_multi)
+    writer.add_scalar('./Test/FID', best_fid, i)
+    writer.add_scalar('./Test/Diversity', best_div, i)
+    writer.add_scalar('./Test/top1', best_top1, i)
+    writer.add_scalar('./Test/top2', best_top2, i)
+    writer.add_scalar('./Test/top3', best_top3, i)
+    writer.add_scalar('./Test/matching_score', best_matching, i)
+    writer.add_scalar('./Test/multimodality', best_multi, i)
 
 print('final result:')
 print('fid: ', sum(fid)/repeat_time)
