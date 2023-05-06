@@ -3,7 +3,7 @@
 # sbatch train_trans.sh
 # screen -S temp ~/git/MaskText2Motion/T2M-GPT-Batch/bidirec_autoregress/train_trans.sh
 
-#SBATCH --job-name=trans4gpu
+#SBATCH --job-name=HML3D_3_BidirAutoreg_big_sameTxtEmb
 #SBATCH --partition=GPU
 #SBATCH --gres=gpu:4
 #SBATCH --nodes=1
@@ -15,19 +15,19 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-GPT-Batch/
 conda activate T2M-GPT
-name='HML3D_2_BidirAutoreg_small' # TEMP
+name='HML3D_3_BidirAutoreg_big_sameTxtEmb' # TEMP
 dataset_name='t2m'
-vq_name='VQVAE_official_last'
+vq_name='HML3D_VQVAE_official_last'
 debug='f'
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+# export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export CUDA_LAUNCH_BLOCKING=1
 MULTI_BATCH=4
 
 python3 train_bidirec_autoregress.py  \
     --exp-name ${name} \
     --batch-size $((128*MULTI_BATCH)) \
-    --num-layers 8 \
-    --embed-dim-gpt 512 \
+    --num-layers 9 \
+    --embed-dim-gpt 1024 \
     --nb-code 512 \
     --n-head-gpt 16 \
     --block-size 49 \

@@ -266,32 +266,3 @@ def get_attn_mask(m_tokens_len, T, n_head):
     # end_idx = m_tokens_len[:, None, None].repeat(1,T,1)-1
     # all.scatter_(dim=-1, index=end_idx, value=1)
     return all.unsqueeze(1).repeat(1, n_head, 1, 1)
-
-    ## old: only top-left & bottom right
-    B = m_tokens_len.shape[0]
-    half_m_tokens_len = torch.ceil(m_tokens_len/2)
-
-    ones_temp = torch.ones(B, T, T, 
-                        device=m_tokens_len.device, 
-                        dtype=torch.bool)
-    top_tril = torch.tril(ones_temp, diagonal=0)
-    bottom_tril = ~torch.tril(ones_temp, diagonal=-1)
-    top_tril = top_tril.view(B, 1, T, T).repeat(1, n_head, 1, 1)
-    bottom_tril = bottom_tril.view(B, 1, T, T).repeat(1, n_head, 1, 1)
-
-    top_mask = torch.arange(T).repeat(B, 1).to(half_m_tokens_len.device) < half_m_tokens_len.unsqueeze(-1)
-    top_mask = repeat_row_col(top_mask, n_head, B, T)
-
-    bottom_mask = torch.arange(T).repeat(B, 1).to(half_m_tokens_len.device) >= (m_tokens_len - half_m_tokens_len).unsqueeze(-1)
-    bottom_mask = repeat_row_col(bottom_mask, n_head, B, T)
-
-    len_mask = generate_src_mask(T, m_tokens_len)
-    len_mask = repeat_row_col(len_mask, n_head, B, T)
-
-    all_mask = (top_mask*top_tril + bottom_mask*bottom_tril) * len_mask
-
-    # first and last col
-    all_mask[:,:, :, 0] = 1
-    end_idx = m_tokens_len[:, None, None, None].repeat(1,1,T, 1)-1
-    all_mask.scatter_(dim=-1, index=end_idx, value=1)
-    return all_mask
