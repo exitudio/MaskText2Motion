@@ -229,10 +229,10 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
 
     if nb_iter==0 or nb_iter % args.eval_iter ==  0 or nb_iter == args.total_iter:
         num_repeat = 1
-        rand_pos = True
+        rand_pos = False
         if nb_iter == args.total_iter:
             num_repeat = 30
-            rand_pos = False
+            rand_pos = True
         pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, best_multi, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model=clip_model, eval_wrapper=eval_wrapper, num_repeat=num_repeat, rand_pos=rand_pos)
         for i in range(4):
             x = pose[i].detach().cpu().numpy()
