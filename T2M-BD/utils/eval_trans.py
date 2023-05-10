@@ -166,7 +166,7 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
 
 
 @torch.no_grad()        
-def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, draw = True, save = True, savegif=False, num_repeat=1) : 
+def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, draw = True, save = True, savegif=False, num_repeat=1, rand_pos=False) : 
 
     trans.eval()
     nb_sample = 0
@@ -201,7 +201,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
             pred_pose_eval = torch.zeros((bs, seq, pose.shape[-1])).cuda()
             pred_len = torch.ones(bs).long()
 
-            index_motion = trans(feat_clip_text, type="sample", m_length=m_length.cuda())
+            index_motion = trans(feat_clip_text, type="sample", m_length=m_length.cuda(), rand_pos=rand_pos)
             # [INFO] 1. this get the last index of blank_id
             # pred_length = (index_motion == blank_id).int().argmax(1).float()
             # [INFO] 2. this get the first index of blank_id

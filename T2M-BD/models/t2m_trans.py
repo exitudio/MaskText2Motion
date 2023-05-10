@@ -53,9 +53,9 @@ class Text2Motion_Transformer(nn.Module):
         logits = self.trans_head(feat, src_mask)
         return logits
 
-    def sample(self, clip_feature, m_length=None, if_test=False):
-        max_steps = 18
-        max_length = 50
+    def sample(self, clip_feature, m_length=None, if_test=False, rand_pos=False):
+        max_steps = 20
+        max_length = 49
         batch_size = clip_feature.shape[0]
         mask_id = self.num_vq + 2
         pad_id = self.num_vq + 1
@@ -63,7 +63,7 @@ class Text2Motion_Transformer(nn.Module):
         shape = (batch_size, self.block_size - 1)
         topk_filter_thres = .9
         starting_temperature = 1.0
-        scores = torch.zeros(shape, dtype = torch.float32, device = clip_feature.device)
+        scores = torch.ones(shape, dtype = torch.float32, device = clip_feature.device)
         
         m_tokens_len = torch.ceil((m_length)/4)
         src_token_mask = generate_src_mask(self.block_size-1, m_tokens_len+1)
@@ -93,14 +93,20 @@ class Text2Motion_Transformer(nn.Module):
         # ids[masked_indices] = mask_id
         #########################
         temp = []
+        sample_max_steps = torch.round(max_steps/max_length*m_tokens_len) + 1e-8
         for step in range(max_steps):
-            sample_max_steps = torch.round(max_steps/max_length*m_tokens_len)
-            timestep = torch.clip(step/(sample_max_steps-1), max=1)
-            rand_mask_prob = cosine_schedule(timestep)
+            timestep = torch.clip(step/(sample_max_steps), max=1)
+            rand_mask_prob = cosine_schedule(timestep) # timestep #
             num_token_masked = (rand_mask_prob * m_tokens_len).long().clip(min=1)
             # [INFO] rm no motion frames
-            scores[~src_token_mask_noend] = -1e5
-            sorted, sorted_score_indices = scores.sort(descending=True)
+            scores[~src_token_mask_noend] = 0
+            scores = scores/scores.sum(-1)[:, None] # normalize only unmasked token
+            
+            if rand_pos:
+                sorted_score_indices = scores.multinomial(scores.shape[-1], replacement=False) # stocastic
+            else:
+                sorted, sorted_score_indices = scores.sort(descending=True) # deterministic
+            
             ids[~src_token_mask] = pad_id # [INFO] replace with pad id
             ids.scatter_(-1, m_tokens_len[..., None].long(), end_id) # [INFO] replace with end id
             ## [INFO] Replace "mask_id" to "ids" that have highest "num_token_masked" "scores" 
@@ -137,7 +143,7 @@ class Text2Motion_Transformer(nn.Module):
             probs_without_temperature = logits.softmax(dim = -1)
             scores = 1 - probs_without_temperature.gather(-1, pred_ids[..., None])
             scores = rearrange(scores, '... 1 -> ...')
-            scores = scores.masked_fill(~is_mask, -1e5)
+            scores = scores.masked_fill(~is_mask, 0)
         if if_test:
             return ids, temp
         return ids
