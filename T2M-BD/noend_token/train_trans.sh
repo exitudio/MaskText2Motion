@@ -39,7 +39,7 @@ python3 noend_token_train_t2m_trans.py  \
     --resume-pth output/${dataset_name}/${vq_name}/net_last.pth \
     --vq-name ${vq_name} \
     --out-dir output/${dataset_name} \
-    --total-iter 1 \
+    --total-iter $((300000/MULTI_BATCH)) \
     --lr-scheduler $((150000/MULTI_BATCH)) \
     --lr 0.0001 \
     --dataname ${dataset_name} \
