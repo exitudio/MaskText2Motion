@@ -243,19 +243,32 @@ def generate_src_mask(T, length):
     mask = torch.arange(T).repeat(B, 1).to(length.device) < length.unsqueeze(-1)
     return mask
 
+def copyComplete(source, target):
+    '''https://stackoverflow.com/questions/19787348/copy-file-keep-permissions-and-owner'''
+    # copy content, stat-info (mode too), timestamps...
+    if os.path.isfile(source):
+        shutil.copy2(source, target)
+    else:
+        shutil.copytree(source, target, ignore=shutil.ignore_patterns('__pycache__'))
+    # copy owner and group
+    st = os.stat(source)
+    os.chown(target, st.st_uid, st.st_gid)
+
 def init_save_folder(args):
     import glob
     if args.exp_name != 'TEMP':
         date = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         args.out_dir = f"./{args.out_dir}/{date}_{args.exp_name}/"
         save_source = f'{args.out_dir}source/'
-        os.makedirs(save_source, exist_ok=False)
+        os.makedirs(save_source, mode=os.umask(0), exist_ok=False)
+        os.chmod(save_source, 0o777)
         for f in  glob.glob('dataset/dataset*.py')+['exit', 'experiments', 'models', 'options', 'utils', 'GPT_eval_multi.py', 'train_t2m_trans.py', 'train_vq.py', 'VQ_eval.py']:
+            item = f'{save_source}{f}'
             try:
-                shutil.copytree(f, f'{save_source}/{f}', ignore=shutil.ignore_patterns('__pycache__'))
+                copyComplete(f, item)
             except:
-                os.makedirs(os.path.dirname(f'{save_source}{f}'), exist_ok=True)
-                shutil.copy(f, f'{save_source}{f}')
+                os.makedirs(os.path.dirname(item), 0o777, exist_ok=True)
+                copyComplete(f, item)
     else:
         args.out_dir = os.path.join(args.out_dir, f'{args.exp_name}')
 
