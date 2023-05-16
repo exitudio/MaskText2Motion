@@ -72,8 +72,15 @@ class VQVAE_251(nn.Module):
 
 
     def forward_decoder(self, x):
+        # x = x.clone()
+        # pad_mask = x >= self.code_dim
+        # x[pad_mask] = 0
+
         x_d = self.quantizer.dequantize(x)
         x_d = x_d.permute(0, 2, 1).contiguous()
+
+        # pad_mask = pad_mask.unsqueeze(1)
+        # x_d = x_d * ~pad_mask
         
         # decoder
         x_decoder = self.decoder(x_d)

@@ -111,7 +111,7 @@ class Text2Motion_Transformer(nn.Module):
             ids.scatter_(-1, m_tokens_len[..., None].long(), end_id) # [INFO] replace with end id
             ## [INFO] Replace "mask_id" to "ids" that have highest "num_token_masked" "scores" 
             select_masked_indices = generate_src_mask(sorted_score_indices.shape[1], num_token_masked)
-            # [INFO] add one more index for the end_id places
+            # [INFO] repeat last_id to make it scatter_ the existing last ids.
             last_index = sorted_score_indices.gather(-1, num_token_masked.unsqueeze(-1)-1)
             sorted_score_indices = sorted_score_indices * select_masked_indices + (last_index*~select_masked_indices)
             ids.scatter_(-1, sorted_score_indices, mask_id)
@@ -126,7 +126,7 @@ class Text2Motion_Transformer(nn.Module):
             # pred_ids = filtered_logits.argmax(dim = -1)
             pred_ids = gumbel_sample(filtered_logits, temperature = temperature, dim = -1)
             is_mask = ids == mask_id
-            temp.append(is_mask[0].unsqueeze(0))
+            temp.append(is_mask[:1])
             
             # mid = is_mask[0][:m_tokens_len[0].int()]
             # mid = mid.nonzero(as_tuple=True)[0]
@@ -270,7 +270,7 @@ class CrossCondTransHead(nn.Module):
 
         self.blocks = nn.Sequential(*[Block(embed_dim, block_size, n_head, drop_out_rate, fc_rate) for _ in range(num_layers)])
         self.ln_f = nn.LayerNorm(embed_dim)
-        self.head = nn.Linear(embed_dim, num_vq + 1, bias=False)
+        self.head = nn.Linear(embed_dim, num_vq, bias=False)
         self.block_size = block_size
 
         self.apply(self._init_weights)

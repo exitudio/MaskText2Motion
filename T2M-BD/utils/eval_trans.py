@@ -197,6 +197,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         feat_clip_text = clip_model(text).float()
         
         motion_multimodality_batch = []
+        m_tokens_len = torch.ceil((m_length)/4)
         for i in range(num_repeat):
             pred_pose_eval = torch.zeros((bs, seq, pose.shape[-1])).cuda()
             pred_len = torch.ones(bs).long()
@@ -210,17 +211,24 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
             # pred_length[pred_length==0] = index_motion.shape[1] # if blank_id in the first frame, set length to max
             # [INFO] need to run single sample at a time b/c it's conv
             for k in range(bs):
-                # [TODO] set len to 1 for 0 length
-                if pred_length[k] == 0:
-                    pred_len[k] = seq
-                    continue
-                pred_pose = net(index_motion[k:k+1, :int(pred_length[k].item())], type='decode')
-                cur_len = pred_pose.shape[1]
+            ######### [INFO] Eval only the predicted length
+            #     if pred_length[k] == 0:
+            #         pred_len[k] = seq
+            #         continue
+            #     pred_pose = net(index_motion[k:k+1, :int(pred_length[k].item())], type='decode')
+            #     cur_len = pred_pose.shape[1]
 
-                pred_len[k] = min(cur_len, seq)
-                pred_pose_eval[k:k+1, :cur_len] = pred_pose[:, :seq]
-            et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, pred_len)
+            #     pred_len[k] = min(cur_len, seq)
+            #     pred_pose_eval[k:k+1, :cur_len] = pred_pose[:, :seq]
+            # et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, pred_len)
+            ######################################################
             
+            ######### [INFO] Eval by m_length
+                pred_pose = net(index_motion[k:k+1, :int(m_tokens_len[k].item())], type='decode')
+                pred_pose_eval[k:k+1, :int(m_length[k].item())] = pred_pose
+            et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, m_length)
+            ######################################################
+
             motion_multimodality_batch.append(em_pred.reshape(bs, 1, -1))
             
             if i == 0:

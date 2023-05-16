@@ -3,9 +3,9 @@
 # sbatch train_trans.sh
 
 # cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
-# screen -L -Logfile HML3D_17_lossAllToken_vqLast_small -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
+# screen -L -Logfile HML3D_29_endInput_noEndOutput -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
 
-#SBATCH --job-name=HML3D_17_lossAllToken_vqLast_small
+#SBATCH --job-name=HML3D_29_endInput_noEndOutput
 #SBATCH --partition=GPU
 #SBATCH --gres=gpu:4
 #SBATCH --nodes=1
@@ -17,20 +17,20 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='HML3D_17_lossAllToken_vqLast_small' # TEMP
+name='HML3D_29_endInput_noEndOutput' # TEMP
 dataset_name='t2m'
 vq_name='VQVAE_official_last'
 debug='f'
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export CUDA_LAUNCH_BLOCKING=1
 # --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/2023-04-08-08-16-27_2_train_withEval/net_last.pth
-MULTI_BATCH=4
+MULTI_BATCH=6
 
 python3 train_t2m_trans.py  \
     --exp-name ${name} \
     --batch-size $((128*MULTI_BATCH)) \
-    --num-layers 8 \
-    --embed-dim-gpt 512 \
+    --num-layers 9 \
+    --embed-dim-gpt 1024 \
     --nb-code 512 \
     --n-head-gpt 16 \
     --block-size 52 \
