@@ -187,7 +187,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     rand_mask_probs = cosine_schedule(rand_time)
     num_token_masked = (m_tokens_len * rand_mask_probs).round().clamp(min = 1)
     seq_mask = generate_src_mask(max_len, m_tokens_len+1)
-    batch_randperm = torch.rand((batch_size, max_len), device = target.device) - seq_mask.int()
+    batch_randperm = torch.rand((batch_size, max_len), device = target.device) - seq_mask_no_end.int()
     batch_randperm = batch_randperm.argsort(dim = -1)
     mask_token = batch_randperm < rearrange(num_token_masked, 'b -> b 1')
 
@@ -197,10 +197,10 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     cls_pred = trans_encoder(masked_input_indices, feat_clip_text, src_mask = seq_mask)[:, 1:]
 
     # [INFO] Compute xent loss as a batch
-    weights = seq_mask / (seq_mask.sum(-1).unsqueeze(-1) * seq_mask.shape[0])
-    cls_pred_seq_masked = torch.masked_select(cls_pred, seq_mask.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
-    target_seq_masked = torch.masked_select(target, seq_mask)
-    weight_seq_masked = torch.masked_select(weights, seq_mask)
+    weights = seq_mask_no_end / (seq_mask_no_end.sum(-1).unsqueeze(-1) * seq_mask_no_end.shape[0])
+    cls_pred_seq_masked = torch.masked_select(cls_pred, seq_mask_no_end.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
+    target_seq_masked = torch.masked_select(target, seq_mask_no_end)
+    weight_seq_masked = torch.masked_select(weights, seq_mask_no_end)
     loss_cls = F.cross_entropy(cls_pred_seq_masked, target_seq_masked, reduction = 'none')
     loss_cls = (loss_cls * weight_seq_masked).sum()
 
@@ -213,14 +213,14 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     if nb_iter % args.print_iter ==  0 :
         probs_seq_masked = torch.softmax(cls_pred_seq_masked, dim=-1)
         _, cls_pred_seq_masked_index = torch.max(probs_seq_masked, dim=-1)
-        target_seq_masked = torch.masked_select(target, seq_mask)
+        target_seq_masked = torch.masked_select(target, seq_mask_no_end)
         right_seq_masked = (cls_pred_seq_masked_index == target_seq_masked).sum()
 
         writer.add_scalar('./Loss/all', loss_cls, nb_iter)
-        writer.add_scalar('./ACC/every_token', right_seq_masked*100/seq_mask.sum(), nb_iter)
+        writer.add_scalar('./ACC/every_token', right_seq_masked*100/seq_mask_no_end.sum(), nb_iter)
         
         # [INFO] log mask/nomask separately
-        no_mask_token = ~mask_token * seq_mask
+        no_mask_token = ~mask_token * seq_mask_no_end
         writer.add_scalar('./ACC/masked', get_acc(cls_pred, target, mask_token), nb_iter)
         writer.add_scalar('./ACC/no_masked', get_acc(cls_pred, target, no_mask_token), nb_iter)
 
