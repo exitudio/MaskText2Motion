@@ -8,6 +8,71 @@ from exit.utils import cosine_schedule, uniform, top_k, gumbel_sample
 from tqdm import tqdm
 from einops import rearrange, repeat
 from exit.utils import get_model, generate_src_mask
+from models.skip_transformer import PositionEmbeddingLearned1D, TransformerEncoderLayer, SkipTransformerEncoder
+
+class Skip_Connection_Transformer(nn.Module):
+    def __init__(self, 
+            num_vq=1024, 
+            embed_dim=512, 
+            clip_dim=512, 
+            block_size=16, 
+            num_layers=2, 
+            n_head=8, 
+            drop_out_rate=0.1, 
+            fc_rate=4):
+        super().__init__()
+        self.query_pos = PositionEmbeddingLearned1D(d_model=embed_dim, max_len=block_size)
+        encoder_layer = TransformerEncoderLayer(
+            embed_dim,
+            n_head,
+            embed_dim,
+            drop_out_rate,
+            'gelu',
+            normalize_before=False,
+        )
+        encoder_norm = nn.LayerNorm(embed_dim)
+        self.encoder = SkipTransformerEncoder(encoder_layer,
+                                                num_layers, encoder_norm)
+
+        self.tok_emb = nn.Embedding(num_vq + 3, embed_dim) # [INFO] 3 = [end_id, blank_id, mask_id]
+        self.cond_emb = nn.Linear(clip_dim, embed_dim)
+        self.pos_embedding = nn.Embedding(block_size, embed_dim)
+        # self.drop = nn.Dropout(drop_out_rate)
+        # transformer block
+        # self.blocks = nn.Sequential(*[Block(embed_dim, block_size, n_head, drop_out_rate, fc_rate) for _ in range(num_layers)])
+        # self.pos_embed = pos_encoding.PositionEmbedding(block_size, embed_dim, 0.0, False)
+
+        self.block_size = block_size
+
+        self.apply(self._init_weights)
+
+    def get_block_size(self):
+        return self.block_size
+
+    def _init_weights(self, module):
+        if isinstance(module, (nn.Linear, nn.Embedding)):
+            module.weight.data.normal_(mean=0.0, std=0.02)
+            if isinstance(module, nn.Linear) and module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+
+    def forward(self, idx, clip_feature, src_mask):
+        if len(idx) == 0:
+            token_embeddings = self.cond_emb(clip_feature).unsqueeze(1)
+        else:
+            b, t = idx.size()
+            assert t <= self.block_size, "Cannot forward, model block size is exhausted."
+            # forward the Trans model
+            token_embeddings = self.tok_emb(idx)
+            token_embeddings = torch.cat([self.cond_emb(clip_feature).unsqueeze(1), token_embeddings], dim=1)
+            
+        # x = self.pos_embed(token_embeddings)
+        # for block in self.blocks:
+        #     x = block(x, src_mask)
+            
+        
 
 class Text2Motion_Transformer(nn.Module):
 
@@ -27,6 +92,8 @@ class Text2Motion_Transformer(nn.Module):
         self.block_size = block_size
         self.num_vq = num_vq
 
+        # self.skip_trans = Skip_Connection_Transformer(num_vq, embed_dim, clip_dim, block_size, num_layers, n_head, drop_out_rate, fc_rate)
+
     def get_block_size(self):
         return self.block_size
 
@@ -39,21 +106,24 @@ class Text2Motion_Transformer(nn.Module):
         else:
             raise ValueError(f'Unknown "{type}" type')
         
-    def get_attn_mask(self, src_mask):
-        src_mask = torch.cat([torch.tensor([[True]]*src_mask.shape[0]).to(src_mask.device),
-                                src_mask],  dim=1)
+    def get_attn_mask(self, src_mask, att_txt=None):
+        if att_txt is None:
+            att_txt = torch.tensor([[True]]*src_mask.shape[0]).to(src_mask.device)
+        src_mask = torch.cat([att_txt, src_mask],  dim=1)
         B, T = src_mask.shape
         src_mask = src_mask.view(B, 1, 1, T).repeat(1, self.n_head, T, 1)
         return src_mask
 
-    def forward_function(self, idxs, clip_feature, src_mask=None):
+    def forward_function(self, idxs, clip_feature, src_mask=None, att_txt=None):
         if src_mask is not None:
-            src_mask = self.get_attn_mask(src_mask)
+            src_mask = self.get_attn_mask(src_mask, att_txt)
         feat = self.trans_base(idxs, clip_feature, src_mask)
         logits = self.trans_head(feat, src_mask)
+
+        # self.skip_trans(idxs)
         return logits
 
-    def sample(self, clip_feature, m_length=None, if_test=False, rand_pos=False):
+    def sample(self, clip_feature, m_length=None, if_test=False, rand_pos=False, CFG=-1):
         max_steps = 20
         max_length = 49
         batch_size = clip_feature.shape[0]
@@ -118,7 +188,19 @@ class Text2Motion_Transformer(nn.Module):
             # if torch.isclose(timestep, torch.tensor(0.7647), atol=.01):
             #     print('masked_indices:', ids[0], src_token_mask[0])
 
-            logits = self.forward(ids, clip_feature, src_token_mask)[:,1:]
+            if CFG!=-1:
+                # print('ids:', ids.shape, clip_feature.shape, src_token_mask.shape)
+                _ids = ids.repeat(2,1)
+                _clip_feature = clip_feature.repeat(2,1)
+                _src_token_mask = src_token_mask.repeat(2,1)
+                att_txt = torch.cat( (torch.ones((batch_size,1), dtype=torch.bool), 
+                                      torch.zeros((batch_size,1), dtype=torch.bool) )).to(_ids.device)
+                logits = self.forward(_ids, _clip_feature, _src_token_mask, att_txt)[:,1:]
+                logits1 = logits[:batch_size]
+                logits2 = logits[batch_size:]
+                logits = (1-CFG)*logits1 + CFG*logits2
+            else:
+                logits = self.forward(ids, clip_feature, src_token_mask)[:,1:]
             filtered_logits = logits #top_k(logits, topk_filter_thres)
             if rand_pos:
                 temperature = 1 #starting_temperature * (steps_until_x0 / timesteps) # temperature is annealed
