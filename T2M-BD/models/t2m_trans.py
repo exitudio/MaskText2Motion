@@ -22,6 +22,7 @@ class Skip_Connection_Transformer(nn.Module):
             fc_rate=4):
         super().__init__()
         self.query_pos = PositionEmbeddingLearned1D(d_model=embed_dim, max_len=block_size)
+        self.mem_pos = PositionEmbeddingLearned1D(d_model=embed_dim, max_len=block_size)
         encoder_layer = TransformerEncoderLayer(
             embed_dim,
             n_head,
@@ -33,14 +34,11 @@ class Skip_Connection_Transformer(nn.Module):
         encoder_norm = nn.LayerNorm(embed_dim)
         self.encoder = SkipTransformerEncoder(encoder_layer,
                                                 num_layers, encoder_norm)
+        self.pose_proj = nn.Linear(embed_dim, num_vq)
 
+        # from T2M-GPT
         self.tok_emb = nn.Embedding(num_vq + 3, embed_dim) # [INFO] 3 = [end_id, blank_id, mask_id]
         self.cond_emb = nn.Linear(clip_dim, embed_dim)
-        self.pos_embedding = nn.Embedding(block_size, embed_dim)
-        # self.drop = nn.Dropout(drop_out_rate)
-        # transformer block
-        # self.blocks = nn.Sequential(*[Block(embed_dim, block_size, n_head, drop_out_rate, fc_rate) for _ in range(num_layers)])
-        # self.pos_embed = pos_encoding.PositionEmbedding(block_size, embed_dim, 0.0, False)
 
         self.block_size = block_size
 
@@ -71,7 +69,14 @@ class Skip_Connection_Transformer(nn.Module):
         # x = self.pos_embed(token_embeddings)
         # for block in self.blocks:
         #     x = block(x, src_mask)
-            
+
+        # From mld
+        xseq = token_embeddings.permute(1,0,2)
+        xseq = self.query_pos(xseq)
+        tokens = self.encoder(xseq, src_key_padding_mask=~src_mask)
+        tokens = self.pose_proj(tokens)
+        tokens = tokens.permute(1,0,2)
+        return tokens
         
 
 class Text2Motion_Transformer(nn.Module):
@@ -115,12 +120,18 @@ class Text2Motion_Transformer(nn.Module):
         return src_mask
 
     def forward_function(self, idxs, clip_feature, src_mask=None, att_txt=None):
+        # MLD:
+        # if att_txt is None:
+        #     att_txt = torch.tensor([[True]]*src_mask.shape[0]).to(src_mask.device)
+        # src_mask = torch.cat([att_txt, src_mask],  dim=1)
+        # logits = self.skip_trans(idxs, clip_feature, src_mask)
+
+        # T2M-BD
         if src_mask is not None:
             src_mask = self.get_attn_mask(src_mask, att_txt)
         feat = self.trans_base(idxs, clip_feature, src_mask)
         logits = self.trans_head(feat, src_mask)
 
-        # self.skip_trans(idxs)
         return logits
 
     def sample(self, clip_feature, m_length=None, if_test=False, rand_pos=False, CFG=-1):

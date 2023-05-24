@@ -194,7 +194,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     # masked_target = torch.where(mask_token, input=input_indices, other=-1)
     masked_input_indices = torch.where(mask_token, mask_id, input_indices)
 
-    att_txt = torch.rand((seq_mask.shape[0], 1)) > 0.1
+    att_txt = None # CFG: torch.rand((seq_mask.shape[0], 1)) > 0.1
     cls_pred = trans_encoder(masked_input_indices, feat_clip_text, src_mask = seq_mask, att_txt=att_txt)[:, 1:]
 
     # [INFO] Compute xent loss as a batch
