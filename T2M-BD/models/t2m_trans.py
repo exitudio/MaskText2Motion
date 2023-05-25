@@ -207,9 +207,10 @@ class Text2Motion_Transformer(nn.Module):
                 att_txt = torch.cat( (torch.ones((batch_size,1), dtype=torch.bool), 
                                       torch.zeros((batch_size,1), dtype=torch.bool) )).to(_ids.device)
                 logits = self.forward(_ids, _clip_feature, _src_token_mask, att_txt)[:,1:]
-                logits1 = logits[:batch_size]
-                logits2 = logits[batch_size:]
-                logits = (1-CFG)*logits1 + CFG*logits2
+                logits_textcond = logits[:batch_size]
+                logits_uncond = logits[batch_size:]
+                # logits = (1-CFG)*logits_textcond + CFG*logits_uncond
+                logits = (1+CFG)*logits_textcond - CFG*logits_uncond
             else:
                 logits = self.forward(ids, clip_feature, src_token_mask)[:,1:]
             filtered_logits = logits #top_k(logits, topk_filter_thres)
