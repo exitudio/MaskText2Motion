@@ -176,7 +176,7 @@ def render(motions, outdir='test_vis', device_id=0, name=None, pred=True):
 
 
 
-
+# python3 render_final.py --filedir /home/epinyoan/git/MaskText2Motion_/T2M-BD/study/data/1a_temp.npy
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -185,9 +185,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     from utils.motion_process import recover_from_ric
+    from os.path import join as pjoin
 
     pose = np.load(args.filedir)
     num_joints = 21 if pose.shape[-1] == 251 else 22
+
+    meta_dir = 'checkpoints/t2m/VQVAEV3_CB1024_CMT_H1024_NRES3/meta'
+    mean = np.load(pjoin(meta_dir, 'mean.npy'))
+    std = np.load(pjoin(meta_dir, 'std.npy'))
+
+    pose = pose * std + mean
     pose_xyz = recover_from_ric(torch.from_numpy(pose).float(), num_joints)
     pose_xyz = pose_xyz.numpy()
     render(pose_xyz, outdir=args.filedir, device_id=0, name='abc', pred=True)
