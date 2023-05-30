@@ -75,7 +75,15 @@ class VQMotionDataset(data.Dataset):
 
     def __getitem__(self, item):
         motion = self.data[item]
-        
+        if self.window_size == -1:
+            m_len = motion.shape[0]
+            pad = np.zeros((self.max_motion_length, motion.shape[1]))
+            # [TODO] length max is 199 (not 196)
+            m_len = min(self.max_motion_length, motion.shape[0])
+            pad[:m_len] = motion[:m_len]
+            motion = pad
+            motion = (motion - self.mean) / self.std
+            return motion, m_len
         idx = random.randint(0, len(motion) - self.window_size)
 
         motion = motion[idx:idx+self.window_size]

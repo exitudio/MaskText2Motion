@@ -17,6 +17,8 @@ import warnings
 warnings.filterwarnings('ignore')
 from utils.word_vectorizer import WordVectorizer
 from tqdm import tqdm
+from exit.utils import generate_src_mask
+import math
 
 def update_lr_warm_up(optimizer, nb_iter, warm_up_iter, lr):
 
@@ -30,7 +32,7 @@ def update_lr_warm_up(optimizer, nb_iter, warm_up_iter, lr):
 args = option_vq.get_args_parser()
 torch.manual_seed(args.seed)
 
-args.out_dir = os.path.join(args.out_dir, f'{args.exp_name}')
+args.out_dir = os.path.join(args.out_dir, f'vq/{args.exp_name}')
 os.makedirs(args.out_dir, exist_ok = True)
 
 ##### ---- Logger ---- #####
@@ -70,28 +72,44 @@ val_loader = dataset_TM_eval.DATALoader(args.dataname, False,
                                         unit_length=2**args.down_t)
 
 ##### ---- Network ---- #####
-net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
-                       args.nb_code,
-                       args.code_dim,
-                       args.output_emb_width,
-                       args.down_t,
-                       args.stride_t,
-                       args.width,
-                       args.depth,
-                       args.dilation_growth_rate,
-                       args.vq_act,
-                       args.vq_norm)
+if args.window_size == -1:
+    from models.vqvae_trans import Encoder, Decoder, vqvae_wrapper
+    from models.quantize_cnn import QuantizeEMAReset, QuantizeEMAReset_mask
+    motion_dim = 251 if args.dataname == 'kit' else 263
+    encoder = Encoder(motion_dim=motion_dim)
+    encoder = torch.nn.DataParallel(encoder)
+    encoder.cuda()
+    decoder = Decoder(motion_dim=motion_dim)
+    decoder = torch.nn.DataParallel(decoder)
+    decoder.cuda()
+    patch_size = 4
+    quantizer = QuantizeEMAReset_mask(args.nb_code, args.code_dim, args)
+    quantizer.cuda()
+    vqvae = vqvae_wrapper(patch_size, encoder, decoder, quantizer)
+    vqvae.train()
+else:
+    net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
+                        args.nb_code,
+                        args.code_dim,
+                        args.output_emb_width,
+                        args.down_t,
+                        args.stride_t,
+                        args.width,
+                        args.depth,
+                        args.dilation_growth_rate,
+                        args.vq_act,
+                        args.vq_norm)
+    net.train()
+    net.cuda()
 
 
 if args.resume_pth : 
     logger.info('loading checkpoint from {}'.format(args.resume_pth))
     ckpt = torch.load(args.resume_pth, map_location='cpu')
     net.load_state_dict(ckpt['net'], strict=True)
-net.train()
-net.cuda()
 
 ##### ---- Optimizer & Scheduler ---- #####
-optimizer = optim.AdamW(net.parameters(), lr=args.lr, betas=(0.9, 0.99), weight_decay=args.weight_decay)
+optimizer = optim.AdamW(list(encoder.parameters()) + list(quantizer.parameters()) + list(decoder.parameters()), lr=args.lr, betas=(0.9, 0.99), weight_decay=args.weight_decay)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_scheduler, gamma=args.gamma)
   
 
@@ -104,14 +122,42 @@ for nb_iter in tqdm(range(1, args.warm_up_iter)):
     
     optimizer, current_lr = update_lr_warm_up(optimizer, nb_iter, args.warm_up_iter, args.lr)
     
-    gt_motion = next(train_loader_iter)
-    gt_motion = gt_motion.cuda().float() # (bs, 64, dim)
+    if args.window_size == -1:
+        gt_motion, m_len = next(train_loader_iter)
+        gt_motion = gt_motion.cuda().float() # (bs, 64, dim)
+        m_len = m_len.cuda()
+        pred_motion, x_d, loss_commit, perplexity = vqvae(gt_motion, m_len)
+    else:
+        gt_motion = next(train_loader_iter)
+        gt_motion = gt_motion.cuda().float() # (bs, 64, dim)
+        pred_motion, loss_commit, perplexity = net(gt_motion)
+   
+    patch_size = 4
+    m_token_len = torch.ceil(m_len/patch_size)
+    max_token_len = math.ceil(gt_motion.shape[1]/patch_size)
+    seq_mask = generate_src_mask(gt_motion.shape[1], m_len)
+    seq_token_mask = generate_src_mask(max_token_len, m_token_len)
 
-    pred_motion, loss_commit, perplexity = net(gt_motion)
-    loss_motion = Loss(pred_motion, gt_motion)
-    loss_vel = Loss.forward_vel(pred_motion, gt_motion)
-    
-    loss = loss_motion + args.commit * loss_commit + args.loss_vel * loss_vel
+    # motion loss
+    loss_motion = Loss(pred_motion, gt_motion).mean(-1)
+    loss_vel = Loss.forward_vel(pred_motion, gt_motion).mean(-1)
+
+    weights = seq_mask / (seq_mask.sum(1).unsqueeze(-1) * seq_mask.shape[0])
+    weights = torch.masked_select(weights, seq_mask)
+    loss_motion = torch.masked_select(loss_motion, seq_mask)
+    loss_vel = torch.masked_select(loss_vel, seq_mask)
+
+    # token loss
+    loss_commit = loss_commit.mean(-1)
+    token_weights = seq_token_mask / (seq_token_mask.sum(1).unsqueeze(-1) * seq_token_mask.shape[0])
+    token_weights = torch.masked_select(token_weights, seq_token_mask)
+    # loss_commit = torch.masked_select(loss_commit, seq_token_mask)
+
+    # all loss
+    loss_motion = (loss_motion*weights).sum()
+    loss_vel = (loss_vel*weights).sum()
+    loss_commit = (loss_commit * token_weights).sum()
+    loss = loss_motion + args.loss_vel * loss_vel + args.commit * loss_commit
     
     optimizer.zero_grad()
     loss.backward()
@@ -132,18 +178,47 @@ for nb_iter in tqdm(range(1, args.warm_up_iter)):
 
 ##### ---- Training ---- #####
 avg_recons, avg_perplexity, avg_commit = 0., 0., 0.
-best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, net, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, eval_wrapper=eval_wrapper)
+best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, vqvae, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, eval_wrapper=eval_wrapper)
 
 for nb_iter in tqdm(range(1, args.total_iter + 1)):
     
-    gt_motion = next(train_loader_iter)
-    gt_motion = gt_motion.cuda().float() # bs, nb_joints, joints_dim, seq_len
+    if args.window_size == -1:
+        gt_motion, m_len = next(train_loader_iter)
+        gt_motion = gt_motion.cuda().float() # (bs, 64, dim)
+        m_len = m_len.cuda()
+        pred_motion, x_d, loss_commit, perplexity = vqvae(gt_motion, m_len)
+    else:
+        gt_motion = next(train_loader_iter)
+        gt_motion = gt_motion.cuda().float() # (bs, 64, dim)
+        pred_motion, loss_commit, perplexity = net(gt_motion)
     
-    pred_motion, loss_commit, perplexity = net(gt_motion)
-    loss_motion = Loss(pred_motion, gt_motion)
-    loss_vel = Loss.forward_vel(pred_motion, gt_motion)
-    
-    loss = loss_motion + args.commit * loss_commit + args.loss_vel * loss_vel
+    patch_size = 4
+    m_token_len = torch.ceil(m_len/patch_size)
+    max_token_len = math.ceil(gt_motion.shape[1]/patch_size)
+    seq_mask = generate_src_mask(gt_motion.shape[1], m_len)
+    seq_token_mask = generate_src_mask(max_token_len, m_token_len)
+
+    # motion loss
+    loss_motion = Loss(pred_motion, gt_motion).mean(-1)
+    loss_vel = Loss.forward_vel(pred_motion, gt_motion).mean(-1)
+
+    weights = seq_mask / (seq_mask.sum(1).unsqueeze(-1) * seq_mask.shape[0])
+    weights = torch.masked_select(weights, seq_mask)
+    loss_motion = torch.masked_select(loss_motion, seq_mask)
+    loss_vel = torch.masked_select(loss_vel, seq_mask)
+
+
+    # token loss
+    loss_commit = loss_commit.mean(-1)
+    token_weights = seq_token_mask / (seq_token_mask.sum(1).unsqueeze(-1) * seq_token_mask.shape[0])
+    token_weights = torch.masked_select(token_weights, seq_token_mask)
+    # loss_commit = torch.masked_select(loss_commit, seq_token_mask)
+
+    # all loss
+    loss_motion = (loss_motion*weights).sum()
+    loss_vel = (loss_vel*weights).sum()
+    loss_commit = (loss_commit * token_weights).sum()
+    loss = loss_motion + args.loss_vel * loss_vel + args.commit * loss_commit
     
     optimizer.zero_grad()
     loss.backward()
@@ -168,5 +243,5 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
         avg_recons, avg_perplexity, avg_commit = 0., 0., 0.,
 
     if nb_iter % args.eval_iter==0 :
-        best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, net, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, eval_wrapper=eval_wrapper)
+        best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, vqvae, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, eval_wrapper=eval_wrapper)
         

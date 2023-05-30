@@ -112,7 +112,7 @@ class QuantizeEMAReset(nn.Module):
             perplexity = self.compute_perplexity(code_idx)
         
         # Loss
-        commit_loss = F.mse_loss(x, x_d.detach())
+        commit_loss = F.mse_loss(x, x_d.detach(), reduction='none')
 
         # Passthrough
         x_d = x + (x_d - x).detach()
@@ -122,7 +122,44 @@ class QuantizeEMAReset(nn.Module):
         
         return x_d, commit_loss, perplexity
 
+class QuantizeEMAReset_mask(QuantizeEMAReset):
+    def __init__(self, *arg, **kwargs):
+        super().__init__(*arg, **kwargs)
 
+    def forward(self, x, seq_token_mask):
+        N, T, E = x.shape
+
+        # Preprocess
+        seq_token_mask = seq_token_mask.unsqueeze(-1)
+        x = torch.masked_select(x, seq_token_mask)
+        x = x.view(-1, E)
+
+        # Init codebook if not inited
+        if self.training and not self.init:
+            self.init_codebook(x)
+
+        # quantize and dequantize through bottleneck
+        code_idx = self.quantize(x)
+        x_d = self.dequantize(code_idx)
+
+        # Update embeddings
+        if self.training:
+            perplexity = self.update_codebook(x, code_idx)
+        else : 
+            perplexity = self.compute_perplexity(code_idx)
+        
+        # Loss
+        commit_loss = F.mse_loss(x, x_d.detach(), reduction='none')
+
+        # Passthrough
+        x_d = x + (x_d - x).detach()
+
+        # Postprocess
+        _x_d = torch.zeros((N, T, E)).to(x_d.device)
+        _x_d[seq_token_mask.repeat(1,1,E)] = x_d.view(-1)
+        x_d = _x_d
+        
+        return x_d, commit_loss, perplexity
 
 class Quantizer(nn.Module):
     def __init__(self, n_e, e_dim, beta):

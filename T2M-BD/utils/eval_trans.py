@@ -20,7 +20,7 @@ def tensorborad_add_video_xyz(writer, xyz, nb_iter, tag, nb_vis=4, title_batch=N
     writer.add_video(tag, plot_xyz, nb_iter, fps = 20)
 
 @torch.no_grad()        
-def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, eval_wrapper, draw = True, save = True, savegif=False, savenpy=False) : 
+def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, eval_wrapper, draw = True, save = False, savegif=False, savenpy=False) : 
     net.eval()
     nb_sample = 0
     
@@ -38,36 +38,37 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
     nb_sample = 0
     matching_score_real = 0
     matching_score_pred = 0
-    for batch in val_loader:
+    for batch in tqdm(val_loader):
         word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, token, name = batch
 
-        motion = motion.cuda()
+        motion = motion.cuda().float()
+        m_length = m_length.cuda()
         et, em = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, motion, m_length)
         bs, seq = motion.shape[0], motion.shape[1]
 
         num_joints = 21 if motion.shape[-1] == 251 else 22
         
-        pred_pose_eval = torch.zeros((bs, seq, motion.shape[-1])).cuda()
+        pred_pose_eval, x_d, loss_commit, perplexity = net(motion, m_length)
+        # pred_pose_eval = torch.zeros((bs, seq, motion.shape[-1])).cuda()
 
-        for i in range(bs):
-            pose = val_loader.dataset.inv_transform(motion[i:i+1, :m_length[i], :].detach().cpu().numpy())
-            pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
+        # for i in range(bs):
+        #     pose = val_loader.dataset.inv_transform(motion[i:i+1, :m_length[i], :].detach().cpu().numpy())
+        #     pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
 
-
-            pred_pose, loss_commit, perplexity = net(motion[i:i+1, :m_length[i]])
-            pred_denorm = val_loader.dataset.inv_transform(pred_pose.detach().cpu().numpy())
-            pred_xyz = recover_from_ric(torch.from_numpy(pred_denorm).float().cuda(), num_joints)
+        #     pred_pose, loss_commit, perplexity = net(motion[i:i+1], m_length[i:i+1], type='full')
+        #     pred_denorm = val_loader.dataset.inv_transform(pred_pose.detach().cpu().numpy())
+        #     pred_xyz = recover_from_ric(torch.from_numpy(pred_denorm).float().cuda(), num_joints)
             
-            if savenpy:
-                np.save(os.path.join(out_dir, name[i]+'_gt.npy'), pose_xyz[:, :m_length[i]].cpu().numpy())
-                np.save(os.path.join(out_dir, name[i]+'_pred.npy'), pred_xyz.detach().cpu().numpy())
+        #     if savenpy:
+        #         np.save(os.path.join(out_dir, name[i]+'_gt.npy'), pose_xyz[:, :m_length[i]].cpu().numpy())
+        #         np.save(os.path.join(out_dir, name[i]+'_pred.npy'), pred_xyz.detach().cpu().numpy())
 
-            pred_pose_eval[i:i+1,:m_length[i],:] = pred_pose
+        #     pred_pose_eval[i:i+1,:m_length[i],:] = pred_pose[:1,:m_length[i]]
 
-            if i < min(4, bs):
-                draw_org.append(pose_xyz)
-                draw_pred.append(pred_xyz)
-                draw_text.append(caption[i])
+        #     if i < min(4, bs):
+        #         draw_org.append(pose_xyz)
+        #         draw_pred.append(pred_xyz)
+        #         draw_text.append(caption[i])
 
         et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, m_length)
 
@@ -111,13 +112,13 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
         writer.add_scalar('./Test/matching_score', matching_score_pred, nb_iter)
 
     
-        if nb_iter % 5000 == 0 : 
-            for ii in range(4):
-                tensorborad_add_video_xyz(writer, draw_org[ii], nb_iter, tag='./Vis/org_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'gt'+str(ii)+'.gif')] if savegif else None)
+        # if nb_iter % 5000 == 0 : 
+        #     for ii in range(4):
+        #         tensorborad_add_video_xyz(writer, draw_org[ii], nb_iter, tag='./Vis/org_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'gt'+str(ii)+'.gif')] if savegif else None)
             
-        if nb_iter % 5000 == 0 : 
-            for ii in range(4):
-                tensorborad_add_video_xyz(writer, draw_pred[ii], nb_iter, tag='./Vis/pred_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'pred'+str(ii)+'.gif')] if savegif else None)   
+        # if nb_iter % 5000 == 0 : 
+        #     for ii in range(4):
+        #         tensorborad_add_video_xyz(writer, draw_pred[ii], nb_iter, tag='./Vis/pred_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'pred'+str(ii)+'.gif')] if savegif else None)   
 
     
     if fid < best_fid : 
