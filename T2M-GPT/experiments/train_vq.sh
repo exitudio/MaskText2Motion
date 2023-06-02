@@ -15,10 +15,10 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-GPT
 conda activate T2M-GPT
-name='2_VQVAE_1GPU'
-dataset_name='kit'
+name='2_VQVAE_1GPU_t2m'
+dataset_name='t2m'
 debug='f'
-# export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=7
 python3 train_vq.py \
     --batch-size 256 \
     --lr 2e-4 \

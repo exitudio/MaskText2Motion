@@ -234,14 +234,15 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
         if nb_iter == args.total_iter:
             num_repeat = 30
             rand_pos = True
+            val_loader = dataset_TM_eval.DATALoader(args.dataname, True, 32, w_vectorizer)
         pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, best_multi, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model=clip_model, eval_wrapper=eval_wrapper, num_repeat=num_repeat, rand_pos=rand_pos)
-        for i in range(4):
-            x = pose[i].detach().cpu().numpy()
-            y = pred_pose_eval[i].detach().cpu().numpy()
-            l = m_length[i]
-            caption = clip_text[i]
-            cleaned_name = '-'.join(caption[:200].split('/'))
-            visualize_2motions(x, val_loader.dataset.std, val_loader.dataset.mean, args.dataname, l, y, save_path=f'{args.out_dir}/html/{str(nb_iter)}_{cleaned_name}_{l}.html')
+        # for i in range(4):
+        #     x = pose[i].detach().cpu().numpy()
+        #     y = pred_pose_eval[i].detach().cpu().numpy()
+        #     l = m_length[i]
+        #     caption = clip_text[i]
+        #     cleaned_name = '-'.join(caption[:200].split('/'))
+        #     visualize_2motions(x, val_loader.dataset.std, val_loader.dataset.mean, args.dataname, l, y, save_path=f'{args.out_dir}/html/{str(nb_iter)}_{cleaned_name}_{l}.html')
 
     if nb_iter == args.total_iter: 
         msg_final = f"Train. Iter {best_iter} : FID. {best_fid:.5f}, Diversity. {best_div:.4f}, TOP1. {best_top1:.4f}, TOP2. {best_top2:.4f}, TOP3. {best_top3:.4f}"

@@ -30,7 +30,7 @@ def update_lr_warm_up(optimizer, nb_iter, warm_up_iter, lr):
 args = option_vq.get_args_parser()
 torch.manual_seed(args.seed)
 
-args.out_dir = os.path.join(args.out_dir, f'{args.exp_name}')
+args.out_dir = os.path.join(args.out_dir, f'vq/{args.exp_name}')
 os.makedirs(args.out_dir, exist_ok = True)
 
 ##### ---- Logger ---- #####

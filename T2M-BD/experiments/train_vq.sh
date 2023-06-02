@@ -1,6 +1,8 @@
 #!/bin/sh
 # cd /users/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
 # sbatch train_vq.sh
+
+# cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments
 # screen -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_vq.sh
 
 #SBATCH --job-name=1GPU
@@ -15,8 +17,8 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='2_VQVAE_1GPU'
-dataset_name='kit'
+name='9_VQVAE_'
+dataset_name='t2m'
 debug='f'
 # export CUDA_VISIBLE_DEVICES=3
 python3 train_vq.py \
