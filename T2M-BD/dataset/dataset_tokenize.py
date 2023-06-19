@@ -100,11 +100,11 @@ class VQMotionDataset(data.Dataset):
 
 def DATALoader(dataset_name,
                 batch_size = 1,
-                num_workers = 8, unit_length = 4) : 
+                num_workers = 8, unit_length = 4, shuffle=True) : 
     
     train_loader = torch.utils.data.DataLoader(VQMotionDataset(dataset_name, unit_length=unit_length),
                                               batch_size,
-                                              shuffle=True,
+                                              shuffle=shuffle,
                                               num_workers=num_workers,
                                               #collate_fn=collate_fn,
                                               drop_last = True)

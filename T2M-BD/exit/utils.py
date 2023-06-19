@@ -27,8 +27,8 @@ def axis_standard(skeleton):
 #     skeleton = -skeleton
     # skeleton[:, :, 0] *= -1
     # xyz => zxy
-    skeleton[:, :, [1, 2]] = skeleton[:, :, [2, 1]]
-    skeleton[:, :, [0, 1]] = skeleton[:, :, [1, 0]]
+    skeleton[..., [1, 2]] = skeleton[..., [2, 1]]
+    skeleton[..., [0, 1]] = skeleton[..., [1, 0]]
     return skeleton
 
 def visualize_2motions(motion1, std, mean, dataset_name, length, motion2=None, save_path=None):
@@ -60,7 +60,7 @@ def visualize_2motions(motion1, std, mean, dataset_name, length, motion2=None, s
               first_total_standard=first_total_standard, 
               save_path=save_path) # 'init.html'
     
-def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, save_path=None, axis_standard=axis_standard):
+def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, root_path=None, root_path2=None, save_path=None, axis_standard=axis_standard):
     # [animation] https://community.plotly.com/t/3d-scatter-animation/46368/6
     
     SHIFT_SCALE = 0
@@ -84,31 +84,6 @@ def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, save_path=N
     else:
         display_points = skeleton
         mode = 'markers'
-    # frames = [go.Frame(data=[go.Scatter3d(
-    #     x=display_points[k, :, 0],
-    #     y=display_points[k, :, 1],
-    #     z=display_points[k, :, 2],
-    #     mode=mode,
-    #     marker=dict(size=3, ))],
-    #     traces=[0],
-    #     name=f'frame{k}'
-    # )for k in range(len(display_points))]
-    # print('display_points:', display_points.shape)
-    # if first_total_standard == -1:
-    #     data=[
-    #         go.Scatter3d(x=display_points[0, :, 0], y=display_points[0, :, 1],
-    #                      z=display_points[0, :, 2], mode=mode, marker=dict(size=3, )),
-    #     ]
-    # else:
-    #     data=[
-    #             go.Scatter3d(x=display_points[0, :63, 0], y=display_points[0, :63, 1],
-    #                         z=display_points[0, :63, 2], mode=mode, marker=dict(size=3, color='blue',)),
-    #             go.Scatter3d(x=display_points[0, 63:, 0], y=display_points[0, 63:, 1],
-    #                         z=display_points[0, 63:, 2], mode=mode, marker=dict(size=3, color='red',)),
-    #         ]
-    # fig = go.Figure(
-    #     data=data, layout=go.Layout(scene=dict(aspectmode='data', camera=dict(eye=dict(x=3, y=0, z=0.1)))))
-    
     # follow this thread: https://community.plotly.com/t/3d-scatter-animation/46368/6
     fig = go.Figure(
         data=go.Scatter3d(  x=display_points[0, :first_total_standard, 0], 
@@ -130,6 +105,25 @@ def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, save_path=N
                                 name='Nodes1',
                                 mode=mode, 
                                 marker=dict(size=3, color='red',)))
+
+    if root_path is not None:
+        root_path = axis_standard(root_path)
+        fig.add_traces(data=go.Scatter3d(  
+                                    x=root_path[:, 0], 
+                                    y=root_path[:, 1],
+                                    z=root_path[:, 2], 
+                                    name='root_path',
+                                    mode=mode, 
+                                    marker=dict(size=2, color='green',)))
+    if root_path2 is not None:
+        root_path2 = axis_standard(root_path2)
+        fig.add_traces(data=go.Scatter3d(  
+                                    x=root_path2[:, 0], 
+                                    y=root_path2[:, 1],
+                                    z=root_path2[:, 2], 
+                                    name='root_path2',
+                                    mode=mode, 
+                                    marker=dict(size=2, color='red',)))
 
     frames = []
     # frames.append({'data':copy.deepcopy(fig['data']),'name':f'frame{0}'})
