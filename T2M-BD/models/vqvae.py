@@ -22,6 +22,12 @@ class VQVAE_251(nn.Module):
         self.num_code = nb_code
         self.quant = args.quantizer
         self.encoder = Encoder(251 if args.dataname == 'kit' else 263, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+
+         # Transformer Encoder
+        # from exit.motiontransformer import MotionTransformerEncoder
+        # in_feature = 251 if args.dataname == 'kit' else 263
+        # self.encoder2 = MotionTransformerEncoder(in_feature, args.code_dim, num_frames=4, num_layers=2)
+
         self.decoder = Decoder(251 if args.dataname == 'kit' else 263, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
         if args.quantizer == "ema_reset":
             self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
@@ -63,6 +69,14 @@ class VQVAE_251(nn.Module):
         # _x_in = x_in.reshape( int(x_in.shape[0]*4), x_in.shape[1], 16)
         # x_encoder = self.encoder(_x_in)
         # x_encoder = x_encoder.reshape(x_in.shape[0], -1, int(x_in.shape[2]/4))
+
+        # [Transformer Encoder]
+        # _x_in = x_in.reshape( int(x_in.shape[0]*x_in.shape[2]/4), x_in.shape[1], 4)
+        # _x_in = _x_in.permute(0,2,1)
+        # x_encoder = self.encoder2(_x_in)
+        # x_encoder = x_encoder.permute(0,2,1)
+        # x_encoder = x_encoder.reshape(x_in.shape[0], -1, int(x_in.shape[2]/4))
+
         x_encoder = self.encoder(x_in)
         
         ## quantization

@@ -9,10 +9,11 @@ from tqdm import tqdm
 
 
 class VQMotionDataset(data.Dataset):
-    def __init__(self, dataset_name, feat_bias = 5, window_size = 64, unit_length = 8):
+    def __init__(self, dataset_name, feat_bias = 5, window_size = 64, unit_length = 8, fill_max_len=False):
         self.window_size = window_size
         self.unit_length = unit_length
         self.feat_bias = feat_bias
+        self.fill_max_len = fill_max_len
 
         self.dataset_name = dataset_name
         min_motion_len = 40 if dataset_name =='t2m' else 24
@@ -25,7 +26,7 @@ class VQMotionDataset(data.Dataset):
             radius = 4
             fps = 20
             self.max_motion_length = 196
-            dim_pose = 263
+            self.dim_pose = 263
             self.meta_dir = 'checkpoints/t2m/VQVAEV3_CB1024_CMT_H1024_NRES3/meta'
             #kinematic_chain = paramUtil.t2m_kinematic_chain
         elif dataset_name == 'kit':
@@ -35,7 +36,7 @@ class VQMotionDataset(data.Dataset):
             self.joints_num = 21
             radius = 240 * 8
             fps = 12.5
-            dim_pose = 251
+            self.dim_pose = 251
             self.max_motion_length = 196
             self.meta_dir = 'checkpoints/kit/VQVAEV3_CB1024_CMT_H1024_NRES3/meta'
             #kinematic_chain = paramUtil.kit_kinematic_chain
@@ -93,6 +94,13 @@ class VQMotionDataset(data.Dataset):
         idx = random.randint(0, len(motion) - m_length)
         motion = motion[idx:idx+m_length]
 
+        if self.fill_max_len:
+            motion_zero = np.zeros((self.max_motion_length, self.dim_pose))
+            motion_zero[:m_length] = motion
+            motion = motion_zero
+            motion = (motion - self.mean) / self.std
+            return motion, m_length
+
         "Z Normalization"
         motion = (motion - self.mean) / self.std
 
@@ -102,7 +110,7 @@ def DATALoader(dataset_name,
                 batch_size = 1,
                 num_workers = 8, unit_length = 4, shuffle=True) : 
     
-    train_loader = torch.utils.data.DataLoader(VQMotionDataset(dataset_name, unit_length=unit_length),
+    train_loader = torch.utils.data.DataLoader(VQMotionDataset(dataset_name, unit_length=unit_length, fill_max_len=batch_size!=1),
                                               batch_size,
                                               shuffle=shuffle,
                                               num_workers=num_workers,
