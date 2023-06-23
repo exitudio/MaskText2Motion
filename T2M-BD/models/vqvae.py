@@ -60,6 +60,9 @@ class VQVAE_251(nn.Module):
         
         x_in = self.preprocess(x)
         # Encode
+        # _x_in = x_in.reshape( int(x_in.shape[0]*4), x_in.shape[1], 16)
+        # x_encoder = self.encoder(_x_in)
+        # x_encoder = x_encoder.reshape(x_in.shape[0], -1, int(x_in.shape[2]/4))
         x_encoder = self.encoder(x_in)
         
         ## quantization
