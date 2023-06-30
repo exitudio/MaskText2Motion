@@ -51,23 +51,23 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
 
         for i in range(bs):
             pose = val_loader.dataset.inv_transform(motion[i:i+1, :m_length[i], :].detach().cpu().numpy())
-            pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
+            # pose_xyz = recover_from_ric(torch.from_numpy(pose).float().cuda(), num_joints)
 
 
             pred_pose, loss_commit, perplexity = net(motion[i:i+1, :m_length[i]])
-            pred_denorm = val_loader.dataset.inv_transform(pred_pose.detach().cpu().numpy())
-            pred_xyz = recover_from_ric(torch.from_numpy(pred_denorm).float().cuda(), num_joints)
+            # pred_denorm = val_loader.dataset.inv_transform(pred_pose.detach().cpu().numpy())
+            # pred_xyz = recover_from_ric(torch.from_numpy(pred_denorm).float().cuda(), num_joints)
             
-            if savenpy:
-                np.save(os.path.join(out_dir, name[i]+'_gt.npy'), pose_xyz[:, :m_length[i]].cpu().numpy())
-                np.save(os.path.join(out_dir, name[i]+'_pred.npy'), pred_xyz.detach().cpu().numpy())
+            # if savenpy:
+            #     np.save(os.path.join(out_dir, name[i]+'_gt.npy'), pose_xyz[:, :m_length[i]].cpu().numpy())
+            #     np.save(os.path.join(out_dir, name[i]+'_pred.npy'), pred_xyz.detach().cpu().numpy())
 
             pred_pose_eval[i:i+1,:m_length[i],:] = pred_pose
 
-            if i < min(4, bs):
-                draw_org.append(pose_xyz)
-                draw_pred.append(pred_xyz)
-                draw_text.append(caption[i])
+            # if i < min(4, bs):
+            #     draw_org.append(pose_xyz)
+            #     draw_pred.append(pred_xyz)
+            #     draw_text.append(caption[i])
 
         et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, m_length)
 
@@ -111,13 +111,13 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
         writer.add_scalar('./Test/matching_score', matching_score_pred, nb_iter)
 
     
-        if nb_iter % 5000 == 0 : 
-            for ii in range(4):
-                tensorborad_add_video_xyz(writer, draw_org[ii], nb_iter, tag='./Vis/org_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'gt'+str(ii)+'.gif')] if savegif else None)
+        # if nb_iter % 5000 == 0 : 
+        #     for ii in range(4):
+        #         tensorborad_add_video_xyz(writer, draw_org[ii], nb_iter, tag='./Vis/org_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'gt'+str(ii)+'.gif')] if savegif else None)
             
-        if nb_iter % 5000 == 0 : 
-            for ii in range(4):
-                tensorborad_add_video_xyz(writer, draw_pred[ii], nb_iter, tag='./Vis/pred_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'pred'+str(ii)+'.gif')] if savegif else None)   
+        # if nb_iter % 5000 == 0 : 
+        #     for ii in range(4):
+        #         tensorborad_add_video_xyz(writer, draw_pred[ii], nb_iter, tag='./Vis/pred_eval'+str(ii), nb_vis=1, title_batch=[draw_text[ii]], outname=[os.path.join(out_dir, 'pred'+str(ii)+'.gif')] if savegif else None)   
 
     
     if fid < best_fid : 

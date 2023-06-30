@@ -17,6 +17,7 @@ import warnings
 warnings.filterwarnings('ignore')
 from utils.word_vectorizer import WordVectorizer
 from tqdm import tqdm
+from exit.utils import get_model, generate_src_mask, init_save_folder
 
 def update_lr_warm_up(optimizer, nb_iter, warm_up_iter, lr):
 
@@ -30,8 +31,9 @@ def update_lr_warm_up(optimizer, nb_iter, warm_up_iter, lr):
 args = option_vq.get_args_parser()
 torch.manual_seed(args.seed)
 
-args.out_dir = os.path.join(args.out_dir, f'vq/{args.exp_name}')
-os.makedirs(args.out_dir, exist_ok = True)
+args.out_dir = os.path.join(args.out_dir, f'vq') # /{args.exp_name}
+# os.makedirs(args.out_dir, exist_ok = True)
+init_save_folder(args)
 
 ##### ---- Logger ---- #####
 logger = utils_model.get_logger(args.out_dir)

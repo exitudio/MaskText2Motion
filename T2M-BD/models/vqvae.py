@@ -1,7 +1,8 @@
 import torch.nn as nn
 from models.encdec import Encoder, Decoder
 from models.quantize_cnn import QuantizeEMAReset, Quantizer, QuantizeEMA, QuantizeReset
-
+from models.t2m_trans import Decoder_Transformer, Encoder_Transformer
+from exit.utils import generate_src_mask
 
 class VQVAE_251(nn.Module):
     def __init__(self,
@@ -21,14 +22,33 @@ class VQVAE_251(nn.Module):
         self.code_dim = code_dim
         self.num_code = nb_code
         self.quant = args.quantizer
-        self.encoder = Encoder(251 if args.dataname == 'kit' else 263, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+        output_dim = 251 if args.dataname == 'kit' else 263
+        self.encoder = Encoder(output_dim, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+        
+        # Transformer Encoder
+        # self.encoder = Encoder_Transformer(
+        #     input_feats=output_dim,
+        #     embed_dim=512, # 1024
+        #     output_dim=512,
+        #     block_size=4,
+        #     num_layers=6,
+        #     n_head=16
+        # )
 
-         # Transformer Encoder
+         # Transformer Encoder 4 frames
         # from exit.motiontransformer import MotionTransformerEncoder
         # in_feature = 251 if args.dataname == 'kit' else 263
         # self.encoder2 = MotionTransformerEncoder(in_feature, args.code_dim, num_frames=4, num_layers=2)
 
-        self.decoder = Decoder(251 if args.dataname == 'kit' else 263, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+        self.decoder = Decoder(output_dim, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)        
+        # self.decoder = Decoder_Transformer(
+        #     code_dim=512,
+        #     embed_dim=512, # 1024
+        #     output_dim=output_dim,
+        #     block_size=49,
+        #     num_layers=6,
+        #     n_head=8
+        # )
         if args.quantizer == "ema_reset":
             self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
         elif args.quantizer == "orig":
