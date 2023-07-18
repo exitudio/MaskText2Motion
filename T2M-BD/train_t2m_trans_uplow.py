@@ -15,7 +15,7 @@ import utils.eval_trans as eval_trans
 from dataset import dataset_TM_train
 from dataset import dataset_TM_eval
 from dataset import dataset_tokenize
-import models.t2m_trans as trans
+import models.t2m_trans_uplow as trans
 from options.get_eval_option import get_opt
 from models.evaluator_wrapper import EvaluatorModelWrapper
 import warnings
@@ -34,7 +34,7 @@ torch.manual_seed(args.seed)
 init_save_folder(args)
 
 # [TODO] make the 'output/' folder as arg
-args.vq_dir= f'output/{args.dataname}/{args.vq_name}' #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
+args.vq_dir= f'output/vq/{args.vq_name}' # {args.dataname}  #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
 codebook_dir = f'{args.vq_dir}/codebook/'
 os.makedirs(args.vq_dir, exist_ok = True)
 os.makedirs(codebook_dir, exist_ok = True)
@@ -73,7 +73,8 @@ class TextCLIP(torch.nn.Module):
         return self.model.encode_text(text)
 clip_model = TextCLIP(clip_model)
 
-net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
+from models.vqvae_sep import VQVAE_SEP
+net = VQVAE_SEP(args, ## use args to define different parameters in different quantizers
                        args.nb_code,
                        args.code_dim,
                        args.output_emb_width,
@@ -131,7 +132,7 @@ if len(os.listdir(codebook_dir)) == 0:
         np.save(pjoin(codebook_dir, name[0] +'.npy'), target)
 
 
-train_loader = dataset_TM_train.DATALoader(args.dataname, args.batch_size, args.nb_code, codebook_dir, unit_length=2**args.down_t)
+train_loader = dataset_TM_train.DATALoader(args.dataname, args.batch_size, args.nb_code, codebook_dir, unit_length=2**args.down_t, up_low_sep=True)
 train_loader_iter = dataset_TM_train.cycle(train_loader)
 
         
@@ -176,29 +177,37 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
         mask = torch.bernoulli(args.pkeep * torch.ones(target.shape,
                                                 device=target.device))
     # random only motion token (not pad token). To prevent pad token got mixed up.
-    seq_mask_no_end = generate_src_mask(max_len, m_tokens_len)
+    seq_mask_no_end = generate_src_mask(max_len, m_tokens_len).unsqueeze(-1).repeat(1,1,2)
     mask = torch.logical_or(mask, ~seq_mask_no_end).int()
     r_indices = torch.randint_like(target, args.nb_code)
     input_indices = mask*target+(1-mask)*r_indices
 
     # Time step masking
-    mask_id = get_model(net).vqvae.num_code + 2
+    mask_id = get_model(net).quantizer.nb_code + 2
     rand_time = uniform((batch_size,), device = target.device)
     rand_mask_probs = cosine_schedule(rand_time)
     num_token_masked = (m_tokens_len * rand_mask_probs).round().clamp(min = 1)
     seq_mask = generate_src_mask(max_len, m_tokens_len+1)
-    batch_randperm = torch.rand((batch_size, max_len), device = target.device) - seq_mask_no_end.int()
-    batch_randperm = batch_randperm.argsort(dim = -1)
-    mask_token = batch_randperm < rearrange(num_token_masked, 'b -> b 1')
+    batch_randperm = torch.rand((batch_size, max_len, 2), device = target.device) - seq_mask_no_end.int()
+
+    UPPER_EQ_LOWER = True
+    if UPPER_EQ_LOWER:
+        batch_randperm = batch_randperm.argsort(dim = 1)
+    else:
+        temp_shape = batch_randperm.shape
+        batch_randperm = batch_randperm.view(batch_randperm.shape[0], -1).argsort(dim = 1)
+        batch_randperm = batch_randperm.view(temp_shape)
+        
+    mask_token = batch_randperm < rearrange(num_token_masked, 'b -> b 1 1')
 
     # masked_target = torch.where(mask_token, input=input_indices, other=-1)
     masked_input_indices = torch.where(mask_token, mask_id, input_indices)
 
     att_txt = None # CFG: torch.rand((seq_mask.shape[0], 1)) > 0.1
-    cls_pred = trans_encoder(masked_input_indices, feat_clip_text, src_mask = seq_mask, att_txt=att_txt)[:, 1:]
+    cls_pred = trans_encoder(masked_input_indices, feat_clip_text, src_mask = seq_mask, att_txt=att_txt, m_tokens_len=m_tokens_len)[:, 1:]
 
     # [INFO] Compute xent loss as a batch
-    weights = seq_mask_no_end / (seq_mask_no_end.sum(-1).unsqueeze(-1) * seq_mask_no_end.shape[0])
+    weights = seq_mask_no_end / (seq_mask_no_end.sum(1).unsqueeze(1) * seq_mask_no_end.shape[0])/2
     cls_pred_seq_masked = torch.masked_select(cls_pred, seq_mask_no_end.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
     target_seq_masked = torch.masked_select(target, seq_mask_no_end)
     weight_seq_masked = torch.masked_select(weights, seq_mask_no_end)

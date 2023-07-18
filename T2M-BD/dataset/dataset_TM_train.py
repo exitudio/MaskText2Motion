@@ -16,11 +16,12 @@ def collate_fn(batch):
 
 '''For use of training text-2-motion generative model'''
 class Text2MotionDataset(data.Dataset):
-    def __init__(self, dataset_name, feat_bias = 5, unit_length = 4, codebook_size = 1024, tokenizer_name=None):
+    def __init__(self, dataset_name, feat_bias = 5, unit_length = 4, codebook_size = 1024, tokenizer_name=None, up_low_sep=False):
         
         self.max_length = 64
         self.pointer = 0
         self.dataset_name = dataset_name
+        self.up_low_sep = up_low_sep
 
         self.unit_length = unit_length
         # self.mot_start_idx = codebook_size
@@ -129,21 +130,26 @@ class Text2MotionDataset(data.Dataset):
                 m_tokens = m_tokens[1:]
         m_tokens_len = m_tokens.shape[0]
 
-        if m_tokens_len+1 < self.max_motion_length:
-            m_tokens = np.concatenate([m_tokens, np.ones((1), dtype=int) * self.mot_end_idx, np.ones((self.max_motion_length-1-m_tokens_len), dtype=int) * self.mot_pad_idx], axis=0)
+        if self.up_low_sep:
+            if m_tokens_len+1 < self.max_motion_length:
+                m_tokens = np.concatenate([m_tokens, np.ones((1, 2), dtype=int) * self.mot_end_idx, np.ones((self.max_motion_length-1-m_tokens_len, 2), dtype=int) * self.mot_pad_idx], axis=0)
+            else:
+                m_tokens = np.concatenate([m_tokens, np.ones((1, 2), dtype=int) * self.mot_end_idx], axis=0)
         else:
-            m_tokens = np.concatenate([m_tokens, np.ones((1), dtype=int) * self.mot_end_idx], axis=0)
-
-        return caption, m_tokens.reshape(-1), m_tokens_len
+            if m_tokens_len+1 < self.max_motion_length:
+                m_tokens = np.concatenate([m_tokens, np.ones((1), dtype=int) * self.mot_end_idx, np.ones((self.max_motion_length-1-m_tokens_len), dtype=int) * self.mot_pad_idx], axis=0)
+            else:
+                m_tokens = np.concatenate([m_tokens, np.ones((1), dtype=int) * self.mot_end_idx], axis=0)
+        return caption, m_tokens, m_tokens_len
 
 
 
 
 def DATALoader(dataset_name,
                 batch_size, codebook_size, tokenizer_name, unit_length=4,
-                num_workers = 8) : 
+                num_workers = 8, up_low_sep=False) : 
 
-    train_loader = torch.utils.data.DataLoader(Text2MotionDataset(dataset_name, codebook_size = codebook_size, tokenizer_name = tokenizer_name, unit_length=unit_length),
+    train_loader = torch.utils.data.DataLoader(Text2MotionDataset(dataset_name, codebook_size = codebook_size, tokenizer_name = tokenizer_name, unit_length=unit_length, up_low_sep=up_low_sep),
                                               batch_size,
                                               shuffle=True,
                                               num_workers=num_workers,

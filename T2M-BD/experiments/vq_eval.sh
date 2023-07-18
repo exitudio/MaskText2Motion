@@ -2,7 +2,7 @@
 # cd /users/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
 # sbatch eval_gpt.sh
 # cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
-# screen -L -Logfile HML3D_VQVAE_eval_3_2048_128_bestFID ~/git/MaskText2Motion/T2M-BD/experiments/vq_eval.sh
+# screen ~/git/MaskText2Motion/T2M-BD/experiments/vq_eval.sh
 
 #SBATCH --job-name=eval
 #SBATCH --partition=GPU
@@ -16,7 +16,7 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='HML3D_VQVAE_eval_3_2048_128_bestFID' # TEMP
+name='HML3D_VQVAE_eval_16_VQVAE_upperlower_notShareCB' # TEMP
 dataset_name='t2m'
 debug='f'
 export CUDA_VISIBLE_DEVICES=2
@@ -39,4 +39,7 @@ python3 VQ_eval.py \
 --recons-loss l1_smooth \
 --exp-name ${name} \
 --resume-pth /home/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/9_VQVAE_2048_128/net_best_fid.pth
+# --sep-uplow \
+
+
 sleep 11500

@@ -11,6 +11,7 @@ from dataset import dataset_TM_eval
 import utils.eval_trans as eval_trans
 from options.get_eval_option import get_opt
 from models.evaluator_wrapper import EvaluatorModelWrapper
+from models.vqvae_sep import VQVAE_SEP
 import warnings
 warnings.filterwarnings('ignore')
 import numpy as np
@@ -43,7 +44,20 @@ args.nb_joints = 21 if args.dataname == 'kit' else 22
 val_loader = dataset_TM_eval.DATALoader(args.dataname, True, 32, w_vectorizer, unit_length=2**args.down_t)
 
 ##### ---- Network ---- #####
-net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
+if args.sep_uplow:
+    net = VQVAE_SEP(args, ## use args to define different parameters in different quantizers
+                        args.nb_code,
+                        args.code_dim,
+                        args.output_emb_width,
+                        args.down_t,
+                        args.stride_t,
+                        args.width,
+                        args.depth,
+                        args.dilation_growth_rate,
+                        args.vq_act,
+                        args.vq_norm)
+else:
+    net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
                        args.nb_code,
                        args.code_dim,
                        args.output_emb_width,

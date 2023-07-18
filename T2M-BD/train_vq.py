@@ -18,6 +18,7 @@ warnings.filterwarnings('ignore')
 from utils.word_vectorizer import WordVectorizer
 from tqdm import tqdm
 from exit.utils import get_model, generate_src_mask, init_save_folder
+from models.vqvae_sep import VQVAE_SEP
 
 def update_lr_warm_up(optimizer, nb_iter, warm_up_iter, lr):
 
@@ -72,17 +73,30 @@ val_loader = dataset_TM_eval.DATALoader(args.dataname, False,
                                         unit_length=2**args.down_t)
 
 ##### ---- Network ---- #####
-net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
-                       args.nb_code,
-                       args.code_dim,
-                       args.output_emb_width,
-                       args.down_t,
-                       args.stride_t,
-                       args.width,
-                       args.depth,
-                       args.dilation_growth_rate,
-                       args.vq_act,
-                       args.vq_norm)
+if args.sep_uplow:
+    net = VQVAE_SEP(args, ## use args to define different parameters in different quantizers
+                        args.nb_code,
+                        args.code_dim,
+                        args.output_emb_width,
+                        args.down_t,
+                        args.stride_t,
+                        args.width,
+                        args.depth,
+                        args.dilation_growth_rate,
+                        args.vq_act,
+                        args.vq_norm)
+else:
+    net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
+                        args.nb_code,
+                        args.code_dim,
+                        args.output_emb_width,
+                        args.down_t,
+                        args.stride_t,
+                        args.width,
+                        args.depth,
+                        args.dilation_growth_rate,
+                        args.vq_act,
+                        args.vq_norm)
 
 
 if args.resume_pth : 
