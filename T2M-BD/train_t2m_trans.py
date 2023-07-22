@@ -34,7 +34,7 @@ torch.manual_seed(args.seed)
 init_save_folder(args)
 
 # [TODO] make the 'output/' folder as arg
-args.vq_dir= f'output/{args.dataname}/{args.vq_name}' #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
+args.vq_dir= f'output/vq/{args.vq_name}' #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
 codebook_dir = f'{args.vq_dir}/codebook/'
 os.makedirs(args.vq_dir, exist_ok = True)
 os.makedirs(codebook_dir, exist_ok = True)

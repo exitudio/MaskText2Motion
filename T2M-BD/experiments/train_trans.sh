@@ -36,7 +36,7 @@ python3 train_t2m_trans.py  \
     --block-size 51 \
     --ff-rate 4 \
     --drop-out-rate 0.1 \
-    --resume-pth output/${dataset_name}/${vq_name}/net_last.pth \
+    --resume-pth output/vq/${vq_name}/net_last.pth \
     --vq-name ${vq_name} \
     --out-dir output/${dataset_name} \
     --total-iter $((300000/MULTI_BATCH)) \
