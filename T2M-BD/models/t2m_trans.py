@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.distributions import Categorical
 import models.pos_encoding as pos_encoding
-from exit.utils import cosine_schedule, uniform, top_k, gumbel_sample
+from exit.utils import cosine_schedule, uniform, top_k, gumbel_sample, top_p
 from tqdm import tqdm
 from einops import rearrange, repeat
 from exit.utils import get_model, generate_src_mask
@@ -275,6 +275,7 @@ class Encoder_Transformer(nn.Module):
 class Text2Motion_Transformer(nn.Module):
 
     def __init__(self, 
+                vqvae,
                 num_vq=1024, 
                 embed_dim=512, 
                 clip_dim=512, 
@@ -285,7 +286,7 @@ class Text2Motion_Transformer(nn.Module):
                 fc_rate=4):
         super().__init__()
         self.n_head = n_head
-        self.trans_base = CrossCondTransBase(num_vq, embed_dim, clip_dim, block_size, num_layers, n_head, drop_out_rate, fc_rate)
+        self.trans_base = CrossCondTransBase(vqvae, num_vq, embed_dim, clip_dim, block_size, num_layers, n_head, drop_out_rate, fc_rate)
         self.trans_head = CrossCondTransHead(num_vq, embed_dim, block_size, num_layers, n_head, drop_out_rate, fc_rate)
         self.block_size = block_size
         self.num_vq = num_vq
@@ -591,6 +592,7 @@ class Block(nn.Module):
 class CrossCondTransBase(nn.Module):
 
     def __init__(self, 
+                vqvae,
                 num_vq=1024, 
                 embed_dim=512, 
                 clip_dim=512, 
@@ -600,7 +602,11 @@ class CrossCondTransBase(nn.Module):
                 drop_out_rate=0.1, 
                 fc_rate=4):
         super().__init__()
-        self.tok_emb = nn.Embedding(num_vq + 3, embed_dim) # [INFO] 3 = [end_id, blank_id, mask_id]
+        self.vqvae = vqvae
+        # self.tok_emb = nn.Embedding(num_vq + 3, embed_dim).requires_grad_(False) 
+        self.learn_tok_emb = nn.Embedding(3, self.vqvae.vqvae.code_dim)# [INFO] 3 = [end_id, blank_id, mask_id]
+        self.to_emb = nn.Linear(self.vqvae.vqvae.code_dim, embed_dim)
+
         self.cond_emb = nn.Linear(clip_dim, embed_dim)
         self.pos_embedding = nn.Embedding(block_size, embed_dim)
         self.drop = nn.Dropout(drop_out_rate)
@@ -631,7 +637,14 @@ class CrossCondTransBase(nn.Module):
             b, t = idx.size()
             assert t <= self.block_size, "Cannot forward, model block size is exhausted."
             # forward the Trans model
-            token_embeddings = self.tok_emb(idx)
+            not_learn_idx = idx<self.vqvae.vqvae.num_code
+            learn_idx = ~not_learn_idx
+            
+            token_embeddings = torch.empty((*idx.shape, self.vqvae.vqvae.code_dim), device=idx.device)
+            token_embeddings[not_learn_idx] = self.vqvae.vqvae.quantizer.dequantize(idx[not_learn_idx]).requires_grad_(False) 
+            token_embeddings[learn_idx] = self.learn_tok_emb(idx[learn_idx]-self.vqvae.vqvae.num_code)
+            token_embeddings = self.to_emb(token_embeddings)
+
             token_embeddings = torch.cat([self.cond_emb(clip_feature).unsqueeze(1), token_embeddings], dim=1)
             
         x = self.pos_embed(token_embeddings)

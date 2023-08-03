@@ -84,7 +84,8 @@ net = vqvae.HumanVQVAE(args, ## use args to define different parameters in diffe
                        args.dilation_growth_rate)
 
 
-trans_encoder = trans.Text2Motion_Transformer(num_vq=args.nb_code, 
+trans_encoder = trans.Text2Motion_Transformer(vqvae=net,
+                                num_vq=args.nb_code, 
                                 embed_dim=args.embed_dim_gpt, 
                                 clip_dim=args.clip_dim, 
                                 block_size=args.block_size, 

@@ -2,7 +2,7 @@
 # cd /users/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
 # sbatch eval_gpt.sh
 # cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
-# screen -L -Logfile eval_HML3D_32_endInput_noEndOutput_51Block_Small ~/git/MaskText2Motion/T2M-BD/experiments/eval.sh
+# screen -L -Logfile Eval_HML3D_36_token1stStage_cdim8192_32_lr0.0001 ~/git/MaskText2Motion/T2M-BD/experiments/eval.sh
 
 #SBATCH --job-name=eval
 #SBATCH --partition=GPU
@@ -16,23 +16,24 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='eval_HML3D_32_endInput_noEndOutput_51Block_Small' # TEMP
+name='Eval_HML3D_36_token1stStage_cdim8192_32_lr0.0001' # TEMP
 dataset_name='t2m'
 debug='f'
-export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=4
 # export CUDA_LAUNCH_BLOCKING=1
 
 python3 GPT_eval_multi.py  \
     --exp-name ${name} \
     --batch-size 128 \
-    --num-layers 8 \
-    --embed-dim-gpt 512 \
-    --nb-code 512 \
+    --num-layers 9 \
+    --embed-dim-gpt 1024 \
+    --nb-code 8192 \
+    --code-dim 32 \
     --n-head-gpt 16 \
     --block-size 51 \
     --ff-rate 4 \
     --drop-out-rate 0.1 \
-    --resume-pth pretrained/VQVAE/net_last.pth \
+    --resume-pth output/vq/2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32/net_last.pth \
     --vq-name VQVAE \
     --out-dir output \
     --total-iter 300000 \
@@ -46,5 +47,5 @@ python3 GPT_eval_multi.py  \
     --pkeep 0.5 \
     --dilation-growth-rate 3 \
     --vq-act relu \
-    --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-05-31-11-03-15_HML3D_32_endInput_noEndOutput_51Block_Small/net_best_fid.pth
+    --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-07-31-12-27-55_HML3D_36_token1stStage_cdim8192_32_lr0.0001/net_last.pth
 sleep 500
