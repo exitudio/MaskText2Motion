@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.distributions import Categorical
 import models.pos_encoding as pos_encoding
-from exit.utils import cosine_schedule, uniform, top_k, gumbel_sample, top_p
+from exit.utils import cosine_schedule, uniform, top_k, gumbel_sample
 from tqdm import tqdm
 from einops import rearrange, repeat
 from exit.utils import get_model, generate_src_mask
