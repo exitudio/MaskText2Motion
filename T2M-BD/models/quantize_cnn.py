@@ -10,6 +10,8 @@ class QuantizeEMAReset(nn.Module):
         self.code_dim = code_dim
         self.mu = args.mu
         self.reset_codebook()
+        self.reset_count = 0
+        self.usage = torch.zeros((self.nb_code, 1))
         
     def reset_codebook(self):
         self.init = False
@@ -56,13 +58,21 @@ class QuantizeEMAReset(nn.Module):
         code_count = code_onehot.sum(dim=-1)  # nb_code
 
         out = self._tile(x)
-        code_rand = out[:self.nb_code]
+        code_rand = out[torch.randperm(out.shape[0])[:self.nb_code]]
 
         # Update centres
         self.code_sum = self.mu * self.code_sum + (1. - self.mu) * code_sum  # w, nb_code
         self.code_count = self.mu * self.code_count + (1. - self.mu) * code_count  # nb_code
 
         usage = (self.code_count.view(self.nb_code, 1) >= 1.0).float()
+        self.usage = self.usage.to(usage.device)
+        if self.reset_count >= 20:
+            self.reset_count = 0
+            usage = (usage + self.usage >= 1.0).float()
+        else:
+            self.reset_count += 1
+            self.usage = (usage + self.usage >= 1.0).float()
+            usage = torch.ones_like(self.usage, device=x.device)
         code_update = self.code_sum.view(self.nb_code, self.code_dim) / self.code_count.view(self.nb_code, 1)
 
         self.codebook = usage * code_update + (1 - usage) * code_rand
