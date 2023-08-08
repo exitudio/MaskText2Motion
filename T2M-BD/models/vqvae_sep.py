@@ -21,15 +21,15 @@ class VQVAE_SEP(nn.Module):
         super().__init__()
         self.nb_joints = 21 if args.dataname == 'kit' else 22
         output_dim = 251 if args.dataname == 'kit' else 263
-        self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
+        # self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
         
         # self.encoder = Encoder(output_dim, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
-        self.decoder = Decoder(output_dim, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)        
+        self.decoder = Decoder(output_dim, code_dim, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)        
 
         upper_dim = 156        
         lower_dim = 107     
-        self.encoder_upper = Encoder(upper_dim, int(output_emb_width/2), down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
-        self.encoder_lower = Encoder(lower_dim, int(output_emb_width/2), down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+        self.encoder_upper = Encoder(upper_dim, int(code_dim/2), down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+        self.encoder_lower = Encoder(lower_dim, int(code_dim/2), down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
         self.quantizer_upper = QuantizeEMAReset(nb_code, int(code_dim/2), args)
         self.quantizer_lower = QuantizeEMAReset(nb_code, int(code_dim/2), args)
 
