@@ -184,8 +184,9 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
 
     # Time step masking
     mask_id = get_model(net).vqvae.num_code + 2
-    rand_time = uniform((batch_size,), device = target.device)
-    rand_mask_probs = cosine_schedule(rand_time)
+    # rand_time = uniform((batch_size,), device = target.device)
+    # rand_mask_probs = cosine_schedule(rand_time)
+    rand_mask_probs = torch.zeros(batch_size, device = m_tokens_len.device).float().uniform_(0.5, 1)
     num_token_masked = (m_tokens_len * rand_mask_probs).round().clamp(min = 1)
     seq_mask = generate_src_mask(max_len, m_tokens_len+1)
     batch_randperm = torch.rand((batch_size, max_len), device = target.device) - seq_mask_no_end.int()
@@ -200,9 +201,9 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
 
     # [INFO] Compute xent loss as a batch
     weights = seq_mask_no_end / (seq_mask_no_end.sum(-1).unsqueeze(-1) * seq_mask_no_end.shape[0])
-    cls_pred_seq_masked = torch.masked_select(cls_pred, seq_mask_no_end.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
-    target_seq_masked = torch.masked_select(target, seq_mask_no_end)
-    weight_seq_masked = torch.masked_select(weights, seq_mask_no_end)
+    cls_pred_seq_masked = cls_pred[seq_mask_no_end, :].view(-1, cls_pred.shape[-1])
+    target_seq_masked = target[seq_mask_no_end]
+    weight_seq_masked = weights[seq_mask_no_end]
     loss_cls = F.cross_entropy(cls_pred_seq_masked, target_seq_masked, reduction = 'none')
     loss_cls = (loss_cls * weight_seq_masked).sum()
 

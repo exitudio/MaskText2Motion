@@ -256,7 +256,7 @@ def init_save_folder(args):
         save_source = f'{args.out_dir}source/'
         os.makedirs(save_source, mode=os.umask(0), exist_ok=False)
         os.chmod(save_source, 0o777)
-        for f in  glob.glob('dataset/dataset*.py')+['exit', 'experiments', 'models', 'options', 'utils', 'GPT_eval_multi.py', 'train_t2m_trans.py', 'train_vq.py', 'VQ_eval.py']:
+        for f in  glob.glob('dataset/dataset*.py')+['exit', 'experiments', 'models', 'options', 'utils', 'GPT_eval_multi.py', 'train_t2m_trans.py', 'train_vq.py', 'VQ_eval.py', 'train_t2m_trans_uplow.py']:
             item = f'{save_source}{f}'
             try:
                 copyComplete(f, item)
