@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.distributions import Categorical
 import models.pos_encoding as pos_encoding
-from exit.utils import cosine_schedule, uniform, top_k, gumbel_sample
+from exit.utils import cosine_schedule, uniform, top_k, gumbel_sample, top_p
 from tqdm import tqdm
 from einops import rearrange, repeat
 from exit.utils import get_model, generate_src_mask
@@ -409,7 +409,7 @@ class Text2Motion_Transformer(nn.Module):
                 logits = (1+CFG)*logits_textcond - CFG*logits_uncond
             else:
                 logits = self.forward(ids, clip_feature, src_token_mask)[:,1:]
-            filtered_logits = logits #top_k(logits, topk_filter_thres)
+            filtered_logits = logits #top_p(logits, .5) # #top_k(logits, topk_filter_thres)
             if rand_pos:
                 temperature = 1 #starting_temperature * (steps_until_x0 / timesteps) # temperature is annealed
             else:
