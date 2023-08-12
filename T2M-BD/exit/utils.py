@@ -289,3 +289,22 @@ def top_k(logits, thres = 0.9):
     probs = torch.full_like(logits, float('-inf'))
     probs.scatter_(2, ind, val)
     return probs
+
+# https://github.com/lucidrains/DALLE-pytorch/issues/318
+# https://gist.github.com/thomwolf/1a5a29f6962089e871b94cbd09daf317
+from torch.nn import functional as F
+def top_p(logits, thres = 0.1):
+    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+    cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+
+    # # Remove tokens with cumulative probability above the threshold
+    sorted_indices_to_remove = cumulative_probs > (1 - thres)
+    # Shift the indices to the right to keep also the first token above the threshold
+    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+    sorted_indices_to_remove[..., 0] = 0
+
+    # # scatter sorted tensors to original indexing
+    indices_to_remove = sorted_indices_to_remove.scatter(dim=-1, index=sorted_indices, src=sorted_indices_to_remove)
+
+    logits[indices_to_remove] = float('-inf')
+    return logits
