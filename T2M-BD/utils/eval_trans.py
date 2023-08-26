@@ -167,6 +167,22 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
 
 @torch.no_grad()        
 def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, draw = True, save = True, savegif=False, num_repeat=1, rand_pos=False, CFG=-1) : 
+    is_pred_len = True
+    
+    if is_pred_len:
+        from models.len_predictor_modules import MotionLenEstimatorBiGRU
+        from utils.word_vectorizer import WordVectorizer, POS_enumerator
+        unit_length = 4
+        dim_word = 300
+        dim_pos_ohot = len(POS_enumerator)
+        num_classes = 200 // unit_length
+        estimator = MotionLenEstimatorBiGRU(dim_word, dim_pos_ohot, 512, num_classes)
+
+        checkpoints = torch.load('/home/epinyoan/git/text-to-motion/checkpoints/t2m/length_est_bigru/model/latest.tar', map_location='cpu')
+        estimator.load_state_dict(checkpoints['estimator'], strict=True)
+        estimator.cuda()
+        estimator.eval()
+        softmax = torch.nn.Softmax(-1)
 
     trans.eval()
     nb_sample = 0
@@ -198,11 +214,23 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         
         motion_multimodality_batch = []
         m_tokens_len = torch.ceil((m_length)/4)
+
+         
+        if is_pred_len:
+            pred_dis = estimator(word_embeddings.cuda().float(), pos_one_hots.cuda().float(), sent_len)
+            pred_dis = softmax(pred_dis).detach().cpu().numpy()
+            pred_tok_len = torch.from_numpy(pred_dis.argsort(-1)[..., -5:][..., ::-1][..., 0]).cuda()
+            pred_len = pred_tok_len*4
+        else:
+            pred_len = m_length.cuda()
+            pred_tok_len = m_tokens_len
+
+
         for i in range(num_repeat):
             pred_pose_eval = torch.zeros((bs, seq, pose.shape[-1])).cuda()
-            pred_len = torch.ones(bs).long()
+            # pred_len = torch.ones(bs).long()
 
-            index_motion = trans(feat_clip_text, type="sample", m_length=m_length.cuda(), rand_pos=rand_pos, CFG=CFG)
+            index_motion = trans(feat_clip_text, type="sample", m_length=pred_len, rand_pos=rand_pos, CFG=CFG)
             # [INFO] 1. this get the last index of blank_id
             # pred_length = (index_motion == blank_id).int().argmax(1).float()
             # [INFO] 2. this get the first index of blank_id
@@ -224,8 +252,8 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
             ######################################################
             
             ######### [INFO] Eval by m_length
-                pred_pose = net(index_motion[k:k+1, :int(m_tokens_len[k].item())], type='decode')
-                pred_pose_eval[k:k+1, :int(m_length[k].item())] = pred_pose
+                pred_pose = net(index_motion[k:k+1, :int(pred_tok_len[k].item())], type='decode')
+                pred_pose_eval[k:k+1, :int(pred_len[k].item())] = pred_pose
             et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, m_length)
             ######################################################
 

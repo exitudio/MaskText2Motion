@@ -2,7 +2,7 @@
 # cd /users/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
 # sbatch eval_gpt.sh
 # cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
-# screen -L -Logfile Eval_HML3D_36_token1stStage_cdim8192_32_lr0.0001 ~/git/MaskText2Motion/T2M-BD/experiments/eval.sh
+# screen -L -Logfile Eval_HML3D_36_token1stStage_cdim8192_32_lr0.0001_mask.5-1_predLen ~/git/MaskText2Motion/T2M-BD/experiments/eval.sh
 
 #SBATCH --job-name=eval
 #SBATCH --partition=GPU
@@ -16,7 +16,7 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='Eval_HML3D_36_token1stStage_cdim8192_32_lr0.0001' # TEMP
+name='Eval_HML3D_36_token1stStage_cdim8192_32_lr0.0001_mask.5-1_predLen' # TEMP
 dataset_name='t2m'
 debug='f'
 export CUDA_VISIBLE_DEVICES=4
@@ -47,5 +47,5 @@ python3 GPT_eval_multi.py  \
     --pkeep 0.5 \
     --dilation-growth-rate 3 \
     --vq-act relu \
-    --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-07-31-12-27-55_HML3D_36_token1stStage_cdim8192_32_lr0.0001/net_last.pth
+    --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-08-04-23-08-30_HML3D_36_token1stStage_cdim8192_32_lr0.0001_mask.5-1/net_last.pth
 sleep 500
