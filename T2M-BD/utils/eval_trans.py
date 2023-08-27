@@ -217,9 +217,9 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
 
          
         if is_pred_len:
-            pred_dis = estimator(word_embeddings.cuda().float(), pos_one_hots.cuda().float(), sent_len)
-            pred_dis = softmax(pred_dis).detach().cpu().numpy()
-            pred_tok_len = torch.from_numpy(pred_dis.argsort(-1)[..., -5:][..., ::-1][..., 0]).cuda()
+            pred_probs = estimator(word_embeddings.cuda().float(), pos_one_hots.cuda().float(), sent_len).detach()
+            pred_probs = softmax(pred_probs)
+            pred_tok_len = pred_probs.argsort(dim=-1, descending=True)[:, :5][..., 0]
             pred_len = pred_tok_len*4
         else:
             pred_len = m_length.cuda()
