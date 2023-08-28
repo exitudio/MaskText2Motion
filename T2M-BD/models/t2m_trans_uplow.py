@@ -14,6 +14,7 @@ from models.t2m_trans import Block
 class Text2Motion_Transformer(nn.Module):
 
     def __init__(self, 
+                vqvae,
                 num_vq=1024, 
                 embed_dim=512, 
                 clip_dim=512, 
@@ -24,7 +25,7 @@ class Text2Motion_Transformer(nn.Module):
                 fc_rate=4):
         super().__init__()
         self.n_head = n_head
-        self.trans_base = CrossCondTransBase(num_vq, embed_dim, clip_dim, block_size, 20, n_head, drop_out_rate, fc_rate)
+        self.trans_base = CrossCondTransBase(vqvae, num_vq, embed_dim, clip_dim, block_size, 18, n_head, drop_out_rate, fc_rate)
         # self.trans_head = CrossCondTransHead(num_vq, embed_dim, block_size, num_layers, n_head, drop_out_rate, fc_rate)
         self.block_size = block_size
         self.num_vq = num_vq
@@ -151,6 +152,7 @@ class Text2Motion_Transformer(nn.Module):
 class CrossCondTransBase(nn.Module):
 
     def __init__(self, 
+                 vqvae,
                 num_vq=1024, 
                 embed_dim=512, 
                 clip_dim=512, 
@@ -160,11 +162,19 @@ class CrossCondTransBase(nn.Module):
                 drop_out_rate=0.1, 
                 fc_rate=4):
         super().__init__()
+        self.vqvae = vqvae
         embed_dim = int(embed_dim/2)
-        self.tok_emb_upper = nn.Embedding(num_vq + 3, embed_dim) # [INFO] 3 = [end_id, blank_id, mask_id]
-        self.tok_emb_lower = nn.Embedding(num_vq + 3, embed_dim) # [INFO] 3 = [end_id, blank_id, mask_id]
-        self.cond_emb_upper = nn.Linear(clip_dim, embed_dim)
-        self.cond_emb_lower = nn.Linear(clip_dim, embed_dim)
+        
+        cb_dim = self.vqvae.quantizer_upper.code_dim
+        self.learn_tok_emb_upper = nn.Embedding(3, cb_dim)# [INFO] 3 = [end_id, blank_id, mask_id]
+        self.to_emb_upper = nn.Linear(cb_dim, embed_dim)
+        self.learn_tok_emb_lower = nn.Embedding(3, cb_dim)# [INFO] 3 = [end_id, blank_id, mask_id]
+        self.to_emb_lower = nn.Linear(cb_dim, embed_dim)
+
+        # self.tok_emb_upper = nn.Embedding(num_vq + 3, embed_dim) # [INFO] 3 = [end_id, blank_id, mask_id]
+        # self.tok_emb_lower = nn.Embedding(num_vq + 3, embed_dim) # [INFO] 3 = [end_id, blank_id, mask_id]
+        # self.cond_emb_upper = nn.Linear(clip_dim, embed_dim)
+        # self.cond_emb_lower = nn.Linear(clip_dim, embed_dim)
         cat_block_size = 101
         self.pos_embedding = nn.Embedding(cat_block_size, embed_dim)
         self.drop = nn.Dropout(drop_out_rate)
@@ -174,13 +184,14 @@ class CrossCondTransBase(nn.Module):
 
         self.block_size = block_size
 
-        self.apply(self._init_weights)
         self.n_head = n_head
 
         self.ln_upper = nn.LayerNorm(embed_dim)
         self.ln_lower = nn.LayerNorm(embed_dim)
         self.head_upper = nn.Linear(embed_dim, num_vq, bias=False)
         self.head_lower = nn.Linear(embed_dim, num_vq, bias=False)
+        
+        self.apply(self._init_weights)
 
     def get_block_size(self):
         return self.block_size
@@ -194,9 +205,27 @@ class CrossCondTransBase(nn.Module):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
     
+    def get_token_emb(self, idx, quantizer, learn_token_emb, to_emb):
+        not_learn_idx = idx<self.vqvae.num_code
+        learn_idx = ~not_learn_idx
+        token_embeddings = torch.empty((*idx.shape, self.vqvae.code_dim), device=idx.device)
+        token_embeddings[not_learn_idx] = quantizer.dequantize(idx[not_learn_idx]).requires_grad_(False) 
+        token_embeddings[learn_idx] = learn_token_emb(idx[learn_idx]-self.vqvae.num_code)
+        return to_emb(token_embeddings)
+
+    
     def forward(self, idx, clip_feature, src_mask, m_tokens_len):
-        token_embeddings_upper = self.tok_emb_upper(idx[..., 0])
-        token_embeddings_lower = self.tok_emb_lower(idx[..., 1])
+        token_embeddings_upper = self.get_token_emb(idx[..., 0], 
+                                                    self.vqvae.quantizer_upper,
+                                                    self.learn_tok_emb_upper, 
+                                                    self.to_emb_upper)
+        token_embeddings_lower = self.get_token_emb(idx[..., 1], 
+                                                    self.vqvae.quantizer_lower,
+                                                    self.learn_tok_emb_lower, 
+                                                    self.to_emb_lower)
+
+        # token_embeddings_upper = self.tok_emb_upper(idx[..., 0])
+        # token_embeddings_lower = self.tok_emb_lower(idx[..., 1])
         token_embeddings = torch.cat([clip_feature.unsqueeze(1), 
                                        token_embeddings_upper, 
                                        token_embeddings_lower], dim=1)

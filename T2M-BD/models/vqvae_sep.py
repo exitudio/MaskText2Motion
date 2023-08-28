@@ -27,11 +27,16 @@ class VQVAE_SEP(nn.Module):
         self.decoder = Decoder(output_dim, code_dim, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)        
 
         upper_dim = 156        
-        lower_dim = 107     
-        self.encoder_upper = Encoder(upper_dim, int(code_dim/2), down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
-        self.encoder_lower = Encoder(lower_dim, int(code_dim/2), down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
-        self.quantizer_upper = QuantizeEMAReset(nb_code, int(code_dim/2), args)
-        self.quantizer_lower = QuantizeEMAReset(nb_code, int(code_dim/2), args)
+        lower_dim = 107  
+
+        self.num_code = nb_code
+        self.code_dim = int(code_dim/2)
+
+        self.encoder_upper = Encoder(upper_dim, self.code_dim, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+        self.encoder_lower = Encoder(lower_dim, self.code_dim, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+        self.quantizer_upper = QuantizeEMAReset(nb_code, self.code_dim, args)
+        self.quantizer_lower = QuantizeEMAReset(nb_code, self.code_dim, args)
+
 
     def forward(self, x, type='full'):
         '''type=[full, encode, decode]'''

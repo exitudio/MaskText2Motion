@@ -85,7 +85,8 @@ net = VQVAE_SEP(args, ## use args to define different parameters in different qu
                        args.dilation_growth_rate)
 
 
-trans_encoder = trans.Text2Motion_Transformer(num_vq=args.nb_code, 
+trans_encoder = trans.Text2Motion_Transformer(net,
+                                num_vq=args.nb_code, 
                                 embed_dim=args.embed_dim_gpt, 
                                 clip_dim=args.clip_dim, 
                                 block_size=args.block_size, 
@@ -183,7 +184,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     input_indices = mask*target+(1-mask)*r_indices
 
     # Time step masking
-    mask_id = get_model(net).quantizer.nb_code + 2
+    mask_id = get_model(net).quantizer_upper.nb_code + 2
     rand_time = uniform((batch_size,), device = target.device)
     rand_mask_probs = cosine_schedule(rand_time)
     num_token_masked = (m_tokens_len * rand_mask_probs).round().clamp(min = 1)
@@ -193,12 +194,12 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     UPPER_EQ_LOWER = True
     if UPPER_EQ_LOWER:
         batch_randperm = batch_randperm.argsort(dim = 1)
+        mask_token = batch_randperm < rearrange(num_token_masked, 'b -> b 1 1')
     else:
         temp_shape = batch_randperm.shape
         batch_randperm = batch_randperm.view(batch_randperm.shape[0], -1).argsort(dim = 1)
         batch_randperm = batch_randperm.view(temp_shape)
-        
-    mask_token = batch_randperm < rearrange(num_token_masked, 'b -> b 1 1')
+        mask_token = batch_randperm < rearrange(num_token_masked*2, 'b -> b 1 1')
 
     # masked_target = torch.where(mask_token, input=input_indices, other=-1)
     masked_input_indices = torch.where(mask_token, mask_id, input_indices)
@@ -208,9 +209,9 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
 
     # [INFO] Compute xent loss as a batch
     weights = seq_mask_no_end / (seq_mask_no_end.sum(1).unsqueeze(1) * seq_mask_no_end.shape[0])/2
-    cls_pred_seq_masked = torch.masked_select(cls_pred, seq_mask_no_end.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
-    target_seq_masked = torch.masked_select(target, seq_mask_no_end)
-    weight_seq_masked = torch.masked_select(weights, seq_mask_no_end)
+    cls_pred_seq_masked =cls_pred[seq_mask_no_end, :].view(-1, cls_pred.shape[-1])
+    target_seq_masked = target[seq_mask_no_end]
+    weight_seq_masked = weights[seq_mask_no_end]
     loss_cls = F.cross_entropy(cls_pred_seq_masked, target_seq_masked, reduction = 'none')
     loss_cls = (loss_cls * weight_seq_masked).sum()
 
@@ -238,6 +239,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
         # logger.info(msg)
 
     if nb_iter==0 or nb_iter % args.eval_iter ==  0 or nb_iter == args.total_iter:
+        torch.cuda.empty_cache()
         num_repeat = 1
         rand_pos = False
         if nb_iter == args.total_iter:
@@ -252,6 +254,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
         #     caption = clip_text[i]
         #     cleaned_name = '-'.join(caption[:200].split('/'))
         #     visualize_2motions(x, val_loader.dataset.std, val_loader.dataset.mean, args.dataname, l, y, save_path=f'{args.out_dir}/html/{str(nb_iter)}_{cleaned_name}_{l}.html')
+        torch.cuda.empty_cache()
 
     if nb_iter == args.total_iter: 
         msg_final = f"Train. Iter {best_iter} : FID. {best_fid:.5f}, Diversity. {best_div:.4f}, TOP1. {best_top1:.4f}, TOP2. {best_top2:.4f}, TOP3. {best_top3:.4f}"

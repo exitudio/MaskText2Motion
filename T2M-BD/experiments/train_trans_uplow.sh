@@ -3,7 +3,7 @@
 # sbatch train_trans.sh
 
 # cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
-# screen -L -Logfile HML3D_33_upperLower_sepMask_Bilando_18Lyr_CB256 -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans_uplow.sh
+# screen -L -Logfile HML3D_37_upperLower_sepMask_Bilando_18Lyr_CB8192x32_RandUpperLowerSep_pkeep.9 -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans_uplow.sh
 
 #SBATCH --job-name=HML3D_31_CFG
 #SBATCH --partition=GPU
@@ -17,21 +17,22 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='HML3D_33_upperLower_sepMask_Bilando_18Lyr_CB256_sameUpperLower' # TEMP
+name='HML3D_37_upperLower_sepMask_Bilando_18Lyr_CB8192x32_RandUpperLowerSep_temp0.9' # TEMP
 dataset_name='t2m'
-vq_name='2023-07-13-10-36-32_17_VQVAE_upperlower_notShareCB_nbCB256'
+vq_name='2023-08-08-00-29-40_16_VQVAE_upperlower_notShareCB_20batchResetNRandom_8192x32'
 debug='f'
-export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 # export CUDA_LAUNCH_BLOCKING=1
 # --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/2023-04-08-08-16-27_2_train_withEval/net_last.pth
-MULTI_BATCH=6
+MULTI_BATCH=4
 
 python3 train_t2m_trans_uplow.py  \
     --exp-name ${name} \
     --batch-size $((128*MULTI_BATCH)) \
     --num-layers 9 \
     --embed-dim-gpt 1024 \
-    --nb-code 256 \
+    --nb-code 8192 \
+    --code-dim 32 \
     --n-head-gpt 16 \
     --block-size 51 \
     --ff-rate 4 \
