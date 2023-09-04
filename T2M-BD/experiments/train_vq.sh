@@ -17,10 +17,10 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='12_VQVAE_20batchResetNRandom_8192_32'
+name='25_VQVAE_uplowEn-normalDec'
 dataset_name='t2m'
 debug='f'
-export CUDA_VISIBLE_DEVICES=5
+export CUDA_VISIBLE_DEVICES=4
 python3 train_vq.py \
     --batch-size 256 \
     --lr 2e-4 \
@@ -28,6 +28,7 @@ python3 train_vq.py \
     --lr-scheduler 200000 \
     --nb-code 8192 \
     --code-dim 32 \
+    --width 512 \
     --down-t 2 \
     --depth 3 \
     --dilation-growth-rate 3 \
@@ -37,6 +38,7 @@ python3 train_vq.py \
     --quantizer ema_reset \
     --loss-vel 0.5 \
     --recons-loss l1_smooth \
-    --exp-name ${name}
+    --exp-name ${name} \
+    --sep-uplow
 
 sleep 500
