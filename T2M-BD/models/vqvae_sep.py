@@ -19,15 +19,21 @@ class VQVAE_SEP(nn.Module):
                  activation='relu',
                  norm=None):
         super().__init__()
-        self.nb_joints = 21 if args.dataname == 'kit' else 22
-        output_dim = 251 if args.dataname == 'kit' else 263
+        if args.dataname == 'kit':
+            self.nb_joints = 21
+            output_dim = 251
+            upper_dim = 120        
+            lower_dim = 131  
+        else:
+            self.nb_joints = 22
+            output_dim = 263
+            upper_dim = 156        
+            lower_dim = 107 
         # self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
         
         # self.encoder = Encoder(output_dim, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
         self.decoder = Decoder(output_dim, code_dim, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)        
 
-        upper_dim = 156        
-        lower_dim = 107  
 
         self.num_code = nb_code
 
@@ -39,7 +45,7 @@ class VQVAE_SEP(nn.Module):
     def forward(self, x, type='full'):
         '''type=[full, encode, decode]'''
         if type=='full':
-            upper_emb, lower_emb = upper_lower_sep(x)
+            upper_emb, lower_emb = upper_lower_sep(x, self.nb_joints)
             upper_emb = self.preprocess(upper_emb)
             upper_emb = self.encoder_upper(upper_emb)
 
@@ -63,7 +69,7 @@ class VQVAE_SEP(nn.Module):
             return x_out, loss, perplexity
         elif type=='encode':
             N, T, _ = x.shape
-            upper_emb, lower_emb = upper_lower_sep(x)
+            upper_emb, lower_emb = upper_lower_sep(x, self.nb_joints)
             upper_emb = self.preprocess(upper_emb)
             upper_emb = self.encoder_upper(upper_emb)
 
@@ -94,9 +100,7 @@ class VQVAE_SEP(nn.Module):
         x = x.permute(0,2,1)
         return x
 
-def upper_lower_sep(motion):
-    joints_num = 22
-
+def upper_lower_sep(motion, joints_num):
     # root
     _root = motion[..., :4] # root
 
@@ -123,7 +127,10 @@ def upper_lower_sep(motion):
 
     ################################################################################################
     #### Lower Body
-    lower_body = torch.tensor([0,1,2,4,5,7,8,10,11])
+    if joints_num == 22:
+        lower_body = torch.tensor([0,1,2,4,5,7,8,10,11])
+    else:
+        lower_body = torch.tensor([0, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20])
     lower_body_exclude_root = lower_body[1:] - 1
 
     LOW_positions = positions[:,:, lower_body_exclude_root].view(*motion.shape[:2], -1)
@@ -132,7 +139,10 @@ def upper_lower_sep(motion):
     lower_emb = torch.cat([_root, LOW_positions, LOW_6d_rot, LOW_joint_velo, foot_contact], dim=-1)
 
     #### Upper Body
-    upper_body = torch.tensor([3,6,9,12,13,14,15,16,17,18,19,20,21])
+    if joints_num == 22:
+        upper_body = torch.tensor([3,6,9,12,13,14,15,16,17,18,19,20,21])
+    else:
+        upper_body = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     upper_body_exclude_root = upper_body - 1
 
     UP_positions = positions[:,:, upper_body_exclude_root].view(*motion.shape[:2], -1)
