@@ -30,12 +30,10 @@ class VQVAE_SEP(nn.Module):
         lower_dim = 107  
 
         self.num_code = nb_code
-        self.code_dim = int(code_dim/2)
 
-        self.encoder_upper = Encoder(upper_dim, self.code_dim, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
-        self.encoder_lower = Encoder(lower_dim, self.code_dim, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
-        self.quantizer_upper = QuantizeEMAReset(nb_code, self.code_dim, args)
-        self.quantizer_lower = QuantizeEMAReset(nb_code, self.code_dim, args)
+        self.encoder_upper = Encoder(upper_dim, int(code_dim/2), down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+        self.encoder_lower = Encoder(lower_dim, int(code_dim/2), down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+        self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
 
 
     def forward(self, x, type='full'):
@@ -44,14 +42,13 @@ class VQVAE_SEP(nn.Module):
             upper_emb, lower_emb = upper_lower_sep(x)
             upper_emb = self.preprocess(upper_emb)
             upper_emb = self.encoder_upper(upper_emb)
-            upper_emb, loss_upper, perplexity = self.quantizer_upper(upper_emb)
 
             lower_emb = self.preprocess(lower_emb)
             lower_emb = self.encoder_lower(lower_emb)
-            lower_emb, loss_lower, perplexity = self.quantizer_lower(lower_emb)
-            loss = loss_upper + loss_lower
 
             x_quantized = torch.cat([upper_emb, lower_emb], dim=1)
+            lower_emb, loss, perplexity = self.quantizer(x_quantized)
+
 
             # x_in = self.preprocess(x)
             # x_encoder = self.encoder(x_in)
@@ -67,29 +64,22 @@ class VQVAE_SEP(nn.Module):
         elif type=='encode':
             N, T, _ = x.shape
             upper_emb, lower_emb = upper_lower_sep(x)
-            
             upper_emb = self.preprocess(upper_emb)
             upper_emb = self.encoder_upper(upper_emb)
-            upper_emb = self.postprocess(upper_emb)
-            upper_emb = upper_emb.reshape(-1, upper_emb.shape[-1])
-            upper_code_idx = self.quantizer_upper.quantize(upper_emb)
-            upper_code_idx = upper_code_idx.view(N, -1)
 
             lower_emb = self.preprocess(lower_emb)
             lower_emb = self.encoder_lower(lower_emb)
-            lower_emb = self.postprocess(lower_emb)
-            lower_emb = lower_emb.reshape(-1, lower_emb.shape[-1])
-            lower_code_idx = self.quantizer_lower.quantize(lower_emb)
-            lower_code_idx = lower_code_idx.view(N, -1)
-
-            code_idx = torch.cat([upper_code_idx.unsqueeze(-1), lower_code_idx.unsqueeze(-1)], dim=-1)
+            x_encoder = torch.cat([upper_emb, lower_emb], dim=1)
+            x_encoder = self.postprocess(x_encoder)
+            x_encoder = x_encoder.contiguous().view(-1, x_encoder.shape[-1])  # (NT, C)
+            code_idx = self.quantizer.quantize(x_encoder)
+            code_idx = code_idx.view(N, -1)
             return code_idx
 
         elif type=='decode':
-            x_d_upper = self.quantizer_upper.dequantize(x[..., 0])
-            x_d_lower = self.quantizer_lower.dequantize(x[..., 1])
-            x_d = torch.cat([x_d_upper, x_d_lower], dim=-1)
+            x_d = self.quantizer.dequantize(x)
             x_d = x_d.permute(0, 2, 1).contiguous()
+            # decoder
             x_decoder = self.decoder(x_d)
             x_out = self.postprocess(x_decoder)
             return x_out

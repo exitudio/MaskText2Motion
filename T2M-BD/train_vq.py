@@ -125,7 +125,7 @@ for nb_iter in tqdm(range(1, args.warm_up_iter)):
 
     pred_motion, loss_commit, perplexity = net(gt_motion)
     loss_motion = Loss(pred_motion, gt_motion)
-    loss_vel = Loss.forward_vel(pred_motion, gt_motion)
+    loss_vel = Loss.forward_joint(pred_motion, gt_motion)
     
     loss = loss_motion + args.commit * loss_commit + args.loss_vel * loss_vel
     
@@ -157,7 +157,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
     
     pred_motion, loss_commit, perplexity = net(gt_motion)
     loss_motion = Loss(pred_motion, gt_motion)
-    loss_vel = Loss.forward_vel(pred_motion, gt_motion)
+    loss_vel = Loss.forward_joint(pred_motion, gt_motion)
     
     loss = loss_motion + args.commit * loss_commit + args.loss_vel * loss_vel
     

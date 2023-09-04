@@ -166,7 +166,7 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
 
 
 @torch.no_grad()        
-def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, draw = True, save = True, savegif=False, num_repeat=1, rand_pos=False, CFG=-1) : 
+def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, dataname, draw = True, save = True, savegif=False, num_repeat=1, rand_pos=False, CFG=-1) : 
     is_pred_len = True
     
     if is_pred_len:
@@ -178,7 +178,11 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         num_classes = 200 // unit_length
         estimator = MotionLenEstimatorBiGRU(dim_word, dim_pos_ohot, 512, num_classes)
 
-        checkpoints = torch.load('/home/epinyoan/git/text-to-motion/checkpoints/t2m/length_est_bigru/model/latest.tar', map_location='cpu')
+        if dataname == 't2m':
+            cp = '/home/epinyoan/git/text-to-motion/checkpoints/t2m/length_est_bigru/model/latest.tar'
+        elif dataname == 'kit':
+            cp = '/home/epinyoan/git/MaskText2Motion/T2M-BD/checkpoints/kit/length_est_bigru/model/latest.tar'
+        checkpoints = torch.load(cp, map_location='cpu')
         estimator.load_state_dict(checkpoints['estimator'], strict=True)
         estimator.cuda()
         estimator.eval()

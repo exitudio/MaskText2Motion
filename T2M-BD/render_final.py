@@ -167,16 +167,16 @@ def render(motions, outdir='test_vis', device_id=0, name=None, pred=True):
     out = np.stack(vid, axis=0)
     if pred:
         # TypeError: The keyword `fps` is no longer supported. Use `duration`(in ms) instead, e.g. `fps=50` == `duration=20` (1000 * 1/50).
-        imageio.mimsave(outdir + name+'_pred.gif', out, duration=(frames/20))
+        imageio.mimsave(outdir + name+'_pred.gif', out, duration=(frames/20/180))
         # imageio.mimsave(outdir + name+'_pred.gif', out, fps=20)
     else:
-        imageio.mimsave(outdir + name+'_gt.gif', out, duration=(frames/20))
+        imageio.mimsave(outdir + name+'_gt.gif', out, duration=(frames/20/180))
         # imageio.mimsave(outdir + name+'_gt.gif', out, fps=20)
     
 
 
 
-# python3 render_final.py --filedir /home/epinyoan/git/MaskText2Motion_/T2M-BD/study/data/1a_temp.npy
+# python3 render_final.py --filedir /home/epinyoan/git/MaskText2Motion/T2M-BD/study/data/1b_temp.npy
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
