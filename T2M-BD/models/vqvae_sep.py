@@ -54,7 +54,7 @@ class VQVAE_SEP(nn.Module):
             lower_emb = self.encoder_lower(lower_emb)
 
             x_quantized = torch.cat([upper_emb, lower_emb], dim=1)
-            lower_emb, loss, perplexity = self.quantizer(x_quantized)
+            x_quantized, loss, perplexity = self.quantizer(x_quantized)
 
 
             # x_in = self.preprocess(x)
