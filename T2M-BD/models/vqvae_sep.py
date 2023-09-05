@@ -29,6 +29,7 @@ class VQVAE_SEP(nn.Module):
             output_dim = 263
             upper_dim = 156        
             lower_dim = 107 
+        self.code_dim = code_dim
         # self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
         
         # self.encoder = Encoder(output_dim, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
