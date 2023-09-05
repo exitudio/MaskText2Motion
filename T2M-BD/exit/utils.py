@@ -252,7 +252,7 @@ def init_save_folder(args):
     import glob
     if args.exp_name != 'TEMP':
         date = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        args.out_dir = f"./{args.out_dir}/{date}_{args.exp_name}/"
+        args.out_dir = f"/data/epinyoan/git/MaskText2Motion/T2M-BD/{args.out_dir}/{date}_{args.exp_name}/"
         save_source = f'{args.out_dir}source/'
         os.makedirs(save_source, mode=os.umask(0), exist_ok=False)
         os.chmod(save_source, 0o777)
