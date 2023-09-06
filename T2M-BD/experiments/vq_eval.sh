@@ -16,10 +16,10 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='HML3D_VQVAE_eval_16_VQVAE_upperlower_notShareCB' # TEMP
+name='HML3D_VQVAE_eval_26_VQVAE_batch512' # TEMP
 dataset_name='t2m'
 debug='f'
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=6
 # export CUDA_LAUNCH_BLOCKING=1
 
 python3 VQ_eval.py \
@@ -27,7 +27,8 @@ python3 VQ_eval.py \
 --lr 2e-4 \
 --total-iter 300000 \
 --lr-scheduler 200000 \
---nb-code 512 \
+--nb-code 8192 \
+--code-dim 32 \
 --down-t 2 \
 --depth 3 \
 --dilation-growth-rate 3 \
@@ -38,7 +39,7 @@ python3 VQ_eval.py \
 --loss-vel 0.5 \
 --recons-loss l1_smooth \
 --exp-name ${name} \
---resume-pth /home/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/9_VQVAE_2048_128/net_best_fid.pth
+--resume-pth /data/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-09-05-17-09-05_26_VQVAE_batch512/net_last.pth
 # --sep-uplow \
 
 
