@@ -22,10 +22,10 @@ dataset_name='t2m'
 debug='f'
 export CUDA_VISIBLE_DEVICES=4
 python3 train_vq.py \
-    --batch-size 512 \
+    --batch-size 256 \
     --lr 2e-4 \
-    --total-iter 150000 \
-    --lr-scheduler 100000 \
+    --total-iter 300000  \
+    --lr-scheduler 200000 \
     --nb-code 8192 \
     --code-dim 32 \
     --width 512 \

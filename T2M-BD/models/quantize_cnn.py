@@ -66,7 +66,7 @@ class QuantizeEMAReset(nn.Module):
 
         usage = (self.code_count.view(self.nb_code, 1) >= 1.0).float()
         self.usage = self.usage.to(usage.device)
-        if self.reset_count >= 10:
+        if self.reset_count >= 20:
             self.reset_count = 0
             usage = (usage + self.usage >= 1.0).float()
         else:
