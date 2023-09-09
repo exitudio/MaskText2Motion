@@ -15,12 +15,13 @@ from options.get_eval_option import get_opt
 from models.evaluator_wrapper import EvaluatorModelWrapper
 import warnings
 warnings.filterwarnings('ignore')
+from exit.utils import base_dir
 
 ##### ---- Exp dirs ---- #####
 args = option_trans.get_args_parser()
 torch.manual_seed(args.seed)
 
-args.out_dir = os.path.join(args.out_dir, f'eval/{args.exp_name}')
+args.out_dir = os.path.join(args.out_dir, f'{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/{args.out_dir}/eval/{args.exp_name}')
 os.makedirs(args.out_dir, exist_ok = True)
 
 ##### ---- Logger ---- #####

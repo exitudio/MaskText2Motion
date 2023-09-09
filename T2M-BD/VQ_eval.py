@@ -15,11 +15,13 @@ from models.vqvae_sep import VQVAE_SEP
 import warnings
 warnings.filterwarnings('ignore')
 import numpy as np
+from exit.utils import base_dir
+
 ##### ---- Exp dirs ---- #####
 args = option_vq.get_args_parser()
 torch.manual_seed(args.seed)
 
-args.out_dir = os.path.join(args.out_dir, f'vq_eval/{args.exp_name}')
+args.out_dir = os.path.join(args.out_dir, f'{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/{args.out_dir}/vq_eval/{args.exp_name}')
 os.makedirs(args.out_dir, exist_ok = True)
 
 ##### ---- Logger ---- #####
