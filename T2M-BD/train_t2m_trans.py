@@ -25,6 +25,7 @@ from tqdm import tqdm
 from exit.utils import get_model, visualize_2motions, generate_src_mask, init_save_folder, uniform, cosine_schedule
 from einops import rearrange, repeat
 import torch.nn.functional as F
+from exit.utils import base_dir
 
 ##### ---- Exp dirs ---- #####
 args = option_trans.get_args_parser()
@@ -34,8 +35,9 @@ torch.manual_seed(args.seed)
 init_save_folder(args)
 
 # [TODO] make the 'output/' folder as arg
-args.vq_dir= f'output/vq/{args.vq_name}' #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
+args.vq_dir = f'{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/{args.vq_name}' #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
 codebook_dir = f'{args.vq_dir}/codebook/'
+args.resume_pth = f'{args.vq_dir}/net_last.pth'
 os.makedirs(args.vq_dir, exist_ok = True)
 os.makedirs(codebook_dir, exist_ok = True)
 os.makedirs(args.out_dir, exist_ok = True)

@@ -39,8 +39,9 @@ python3 VQ_eval.py \
 --loss-vel 0.5 \
 --recons-loss l1_smooth \
 --exp-name ${name} \
+--dataname ${dataset_name} \
 --resume-pth /data/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-09-05-17-09-05_26_VQVAE_batch512/net_last.pth
-# --sep-uplow \
+# --sep-uplow
 
 
 sleep 11500
