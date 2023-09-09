@@ -124,22 +124,22 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
         msg = f"--> --> \t FID Improved from {best_fid:.5f} to {fid:.5f} !!!"
         logger.info(msg)
         best_fid, best_iter = fid, nb_iter
-        if save:
-            torch.save({'net' : net.state_dict()}, os.path.join(out_dir, 'net_best_fid.pth'))
+        # if save:
+        #     torch.save({'net' : net.state_dict()}, os.path.join(out_dir, 'net_best_fid.pth'))
 
     if abs(diversity_real - diversity) < abs(diversity_real - best_div) : 
         msg = f"--> --> \t Diversity Improved from {best_div:.5f} to {diversity:.5f} !!!"
         logger.info(msg)
         best_div = diversity
-        if save:
-            torch.save({'net' : net.state_dict()}, os.path.join(out_dir, 'net_best_div.pth'))
+        # if save:
+        #     torch.save({'net' : net.state_dict()}, os.path.join(out_dir, 'net_best_div.pth'))
 
     if R_precision[0] > best_top1 : 
         msg = f"--> --> \t Top1 Improved from {best_top1:.4f} to {R_precision[0]:.4f} !!!"
         logger.info(msg)
         best_top1 = R_precision[0]
-        if save:
-            torch.save({'net' : net.state_dict()}, os.path.join(out_dir, 'net_best_top1.pth'))
+        # if save:
+        #     torch.save({'net' : net.state_dict()}, os.path.join(out_dir, 'net_best_top1.pth'))
 
     if R_precision[1] > best_top2 : 
         msg = f"--> --> \t Top2 Improved from {best_top2:.4f} to {R_precision[1]:.4f} !!!"
@@ -155,8 +155,8 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
         msg = f"--> --> \t matching_score Improved from {best_matching:.5f} to {matching_score_pred:.5f} !!!"
         logger.info(msg)
         best_matching = matching_score_pred
-        if save:
-            torch.save({'net' : net.state_dict()}, os.path.join(out_dir, 'net_best_matching.pth'))
+        # if save:
+        #     torch.save({'net' : net.state_dict()}, os.path.join(out_dir, 'net_best_matching.pth'))
 
     if save:
         torch.save({'net' : net.state_dict()}, os.path.join(out_dir, 'net_last.pth'))
@@ -343,8 +343,8 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         msg = f"--> --> \t FID Improved from {best_fid:.5f} to {fid:.5f} !!!"
         logger.info(msg)
         best_fid, best_iter = fid, nb_iter
-        if save:
-            torch.save({'trans' : get_model(trans).state_dict()}, os.path.join(out_dir, 'net_best_fid.pth'))
+        # if save:
+        #     torch.save({'trans' : get_model(trans).state_dict()}, os.path.join(out_dir, 'net_best_fid.pth'))
     
     if matching_score_pred < best_matching : 
         msg = f"--> --> \t matching_score Improved from {best_matching:.5f} to {matching_score_pred:.5f} !!!"
