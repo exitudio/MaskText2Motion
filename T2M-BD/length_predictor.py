@@ -26,6 +26,7 @@ import os
 import torch.nn.functional as F
 from tqdm import tqdm
 import torch.nn as nn
+from exit.utils import base_dir
 # os.environ["CUDA_LAUNCH_BLOCKING"]="1"
 # os.environ["CUDA_VISIBLE_DEVICES"]="4,5,6,7"
 
@@ -58,7 +59,7 @@ args.code_dim = 32 # 512 #
 args.batch_size = 2048
 args.down_t = 2
 num_workers = 8
-codebook_dir = '/home/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32/codebook'
+codebook_dir = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32/codebook'
 train_loader = dataset_TM_train.DATALoader(args.dataname, args.batch_size, args.nb_code, codebook_dir, unit_length=2**args.down_t, num_workers=num_workers)
 train_loader_iter = dataset_TM_train.cycle(train_loader)
 
@@ -132,7 +133,7 @@ def eval_testset():
 
 
 from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter('./output/length_predictor/8_drpo.1_txtlen')
+writer = SummaryWriter(f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/length_predictor/8_drpo.1_txtlen')
 len_predictor = LengthPredictorCLIP(512, 50)
 len_predictor = torch.nn.DataParallel(len_predictor)
 len_predictor.cuda()
