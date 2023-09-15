@@ -79,7 +79,7 @@ class LengthPredictorCLIP(nn.Module):
         dropout_p = 0.1
         self.output = nn.Sequential(
             nn.Dropout(p=dropout_p, inplace=False),
-            nn.Linear(input_size, nd),
+            nn.Linear(input_size + 1, nd),
             nn.LayerNorm(nd),
             nn.LeakyReLU(0.2, inplace=True),
 
@@ -116,6 +116,11 @@ def eval_testset():
     for word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token, name in tqdm(val_loader):
         text = clip.tokenize(clip_text, truncate=True).cuda()
         feat_clip_text = clip_model(text).float()
+        text_len = []
+        for t in clip_text:
+            text_len.append(len(t[0].split(' ')))
+        text_len = torch.tensor(text_len).cuda()
+        feat_clip_text = torch.cat( [feat_clip_text, text_len[:, None]], axis=-1)
         pred_prob_len = len_predictor(feat_clip_text)
         pred_prob_len = pred_prob_len.argsort(dim=-1, descending=True)[:, 0]
         correct += torch.isclose(pred_prob_len*4, m_length.cuda(), atol= 4).sum()
@@ -127,7 +132,7 @@ def eval_testset():
 
 
 from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter('./output/length_predictor/7_drpo.1_noise+-1')
+writer = SummaryWriter('./output/length_predictor/8_drpo.1_txtlen')
 len_predictor = LengthPredictorCLIP(512, 50)
 len_predictor = torch.nn.DataParallel(len_predictor)
 len_predictor.cuda()
@@ -145,11 +150,16 @@ for epoch in tqdm(range(3000)):
     for clip_text, target, m_tokens_len in train_loader:
         text = clip.tokenize(clip_text, truncate=True).cuda()
         feat_clip_text = clip_model(text).float()
+        text_len = []
+        for t in clip_text:
+            text_len.append(len(t[0].split(' ')))
+        text_len = torch.tensor(text_len).cuda()
+        feat_clip_text = torch.cat( [feat_clip_text, text_len[:, None]], axis=-1)
         pred_prob_len = len_predictor(feat_clip_text)
         # pred_prob_len = softmax(pred_prob_len)
         
-        noise = (torch.rand(m_tokens_len.shape[0]) * 3).int() - 1
-        m_tokens_len = (m_tokens_len + noise).clamp(max=49)
+        # noise = (torch.rand(m_tokens_len.shape[0]) * 3).int() - 1
+        # m_tokens_len = (m_tokens_len + noise).clamp(max=49)
         loss = crossEntropy(pred_prob_len, m_tokens_len.cuda())
         optimizer.zero_grad()
         loss.backward()
