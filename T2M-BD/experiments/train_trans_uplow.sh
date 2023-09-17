@@ -46,7 +46,7 @@ python3 train_t2m_trans_uplow.py  \
     --down-t 2 \
     --depth 3 \
     --quantizer ema_reset \
-    --eval-iter $((10000/MULTI_BATCH)) \
+    --eval-iter $((20000/MULTI_BATCH)) \
     --pkeep 0.5 \
     --dilation-growth-rate 3 \
     --vq-act relu

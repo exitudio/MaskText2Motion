@@ -51,7 +51,7 @@ def get_args_parser():
     parser.add_argument('--exp-name', type=str, default='exp_debug', help='name of the experiment, will create a file inside out-dir')
     ## other
     parser.add_argument('--print-iter', default=200, type=int, help='print frequency')
-    parser.add_argument('--eval-iter', default=1000, type=int, help='evaluation frequency')
+    parser.add_argument('--eval-iter', default=5000, type=int, help='evaluation frequency')
     parser.add_argument('--seed', default=123, type=int, help='seed for initializing training.')
     
     parser.add_argument('--vis-gt', action='store_true', help='whether visualize GT motions')
