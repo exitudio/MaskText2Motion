@@ -15,7 +15,7 @@ import utils.eval_trans as eval_trans
 from dataset import dataset_TM_train
 from dataset import dataset_TM_eval
 from dataset import dataset_tokenize
-import models.t2m_trans as trans
+import models.t2m_trans_uplow as trans
 from options.get_eval_option import get_opt
 from models.evaluator_wrapper import EvaluatorModelWrapper
 import warnings
