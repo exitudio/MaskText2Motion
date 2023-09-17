@@ -155,7 +155,10 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
     gt_motion = next(train_loader_iter)
     gt_motion = gt_motion.cuda().float() # bs, nb_joints, joints_dim, seq_len
     
-    pred_motion, loss_commit, perplexity = net(gt_motion)
+    if args.sep_uplow:
+        pred_motion, loss_commit, perplexity = net(gt_motion)
+    else:
+        pred_motion, loss_commit, perplexity = net(gt_motion, idx_noise=.1)
     loss_motion = Loss(pred_motion, gt_motion)
     loss_vel = Loss.forward_joint(pred_motion, gt_motion)
     
