@@ -99,7 +99,7 @@ class HumanVQVAE(nn.Module):
         super().__init__()
         
         self.nb_joints = 21 if args.dataname == 'kit' else 22
-        self.vqvae = VQVAE_251(args, nb_code, code_dim, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+        self.vqvae = VQVAE_251(args, nb_code, code_dim, code_dim, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
 
     def encode(self, x):
         b, t, c = x.size()
