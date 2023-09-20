@@ -378,6 +378,8 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
     return pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, multimodality, writer, logger
 
 def evaluation_transformer_uplow(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, dataname, draw = True, save = True, savegif=False, num_repeat=1, rand_pos=False, CFG=-1) : 
+    from models.vqvae_sep import get_part_mask, set_part_mask, upper_lower_sep
+    from utils.humanml_utils import HML_UPPER_BODY_MASK, HML_LOWER_BODY_MASK
     is_pred_len = False
     
     if is_pred_len:
@@ -419,7 +421,8 @@ def evaluation_transformer_uplow(out_dir, val_loader, net, trans, logger, writer
     blank_id = get_model(trans).num_vq
     for batch in tqdm(val_loader):
         word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token, name = batch
-        pose = pose.cuda()
+        pose = pose.cuda().float()
+        pose_lower = get_part_mask(HML_LOWER_BODY_MASK, pose)
         bs, seq = pose.shape[:2]
         num_joints = 21 if pose.shape[-1] == 251 else 22
         
@@ -488,13 +491,14 @@ def evaluation_transformer_uplow(out_dir, val_loader, net, trans, logger, writer
                 ], axis=-1)
                 pred_pose = net(all_tokens, type='decode')
                 pred_pose_eval[k:k+1, :int(pred_len[k].item())] = pred_pose
+            pred_pose_eval = set_part_mask(HML_LOWER_BODY_MASK, pred_pose_eval, pose_lower)
             et_pred, em_pred = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pred_pose_eval, m_length)
             ######################################################
 
             motion_multimodality_batch.append(em_pred.reshape(bs, 1, -1))
             
             if i == 0:
-                pose = pose.cuda().float()
+                
                 
                 et, em = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pose, m_length)
                 motion_annotation_list.append(em)

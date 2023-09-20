@@ -637,17 +637,15 @@ class CrossCondTransBase(nn.Module):
             b, t = idx_upper.size()
             assert t <= self.block_size, "Cannot forward, model block size is exhausted."
             # forward the Trans model
-            not_learn_idx = idx_upper<self.vqvae.vqvae.num_code
-            learn_idx = ~not_learn_idx
+            learn_idx_upper = idx_upper>=self.vqvae.vqvae.num_code
+            learn_idx_lower = idx_lower>=self.vqvae.vqvae.num_code
             
-            lower_no_pad = idx_lower < self.vqvae.vqvae.num_code
-            lower_pad = ~lower_no_pad
             code_dim = self.vqvae.vqvae.code_dim
             token_embeddings = torch.empty((*idx_upper.shape, code_dim), device=idx_upper.device)
-            token_embeddings[..., :int(code_dim/2)][not_learn_idx] = self.vqvae.vqvae.quantizer_upper.dequantize(idx_upper[not_learn_idx]).requires_grad_(False) 
-            token_embeddings[..., :int(code_dim/2)][learn_idx] = self.learn_tok_emb(idx_upper[learn_idx]-self.vqvae.vqvae.num_code)
-            token_embeddings[..., int(code_dim/2):][lower_no_pad] = self.vqvae.vqvae.quantizer_lower.dequantize(idx_lower[lower_no_pad]).requires_grad_(False) 
-            token_embeddings[..., int(code_dim/2):][lower_pad] = self.learn_tok_emb(idx_lower[lower_pad]-self.vqvae.vqvae.num_code)
+            token_embeddings[..., :int(code_dim/2)][~learn_idx_upper] = self.vqvae.vqvae.quantizer_upper.dequantize(idx_upper[~learn_idx_upper]).requires_grad_(False) 
+            token_embeddings[..., :int(code_dim/2)][learn_idx_upper] = self.learn_tok_emb(idx_upper[learn_idx_upper]-self.vqvae.vqvae.num_code)
+            token_embeddings[..., int(code_dim/2):][~learn_idx_lower] = self.vqvae.vqvae.quantizer_lower.dequantize(idx_lower[~learn_idx_lower]).requires_grad_(False) 
+            token_embeddings[..., int(code_dim/2):][learn_idx_lower] = self.learn_tok_emb(idx_lower[learn_idx_lower]-self.vqvae.vqvae.num_code)
             token_embeddings = self.to_emb(token_embeddings)
 
             token_embeddings = torch.cat([self.cond_emb(clip_feature).unsqueeze(1), token_embeddings], dim=1)

@@ -196,17 +196,16 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     r_indices = torch.randint_like(target_upper, args.nb_code)
     input_indices = mask*target_upper+(1-mask)*r_indices
 
-    import random
-    proba = .1 #random.randint(0, 2)/10
+    mask_id = get_model(net).vqvae.num_code + 2
+    proba = torch.randint(low=0, high=11, size=(target_lower.shape[0],))/10
+    proba = proba[:, None].cuda()
     mask_lower = torch.bernoulli(proba * torch.ones(target_lower.shape,
                                                             device=target.device))
     mask_lower = torch.logical_or(mask_lower, ~seq_mask_no_end).int()
     r_indices_lower = torch.randint_like(target_lower, args.nb_code)
-    input_indices_lower = mask_lower*target_upper+(1-mask_lower)*r_indices_lower
-
+    input_indices_lower = mask_lower*target_lower+(1-mask_lower)*mask_id
 
     # Time step masking
-    mask_id = get_model(net).vqvae.num_code + 2
     # rand_time = uniform((batch_size,), device = target.device)
     # rand_mask_probs = cosine_schedule(rand_time)
     rand_mask_probs = torch.zeros(batch_size, device = m_tokens_len.device).float().uniform_(0.5, 1)

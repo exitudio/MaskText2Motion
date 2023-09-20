@@ -84,7 +84,8 @@ if args.sep_uplow:
                         args.depth,
                         args.dilation_growth_rate,
                         args.vq_act,
-                        args.vq_norm)
+                        args.vq_norm,
+                        True)
 else:
     net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
                         args.nb_code,

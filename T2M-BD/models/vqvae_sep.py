@@ -4,6 +4,7 @@ from models.quantize_cnn import QuantizeEMAReset, Quantizer, QuantizeEMA, Quanti
 from models.t2m_trans import Decoder_Transformer, Encoder_Transformer
 from exit.utils import generate_src_mask
 import torch
+from utils.humanml_utils import HML_UPPER_BODY_MASK, HML_LOWER_BODY_MASK
 
 class VQVAE_SEP(nn.Module):
     def __init__(self,
@@ -17,7 +18,8 @@ class VQVAE_SEP(nn.Module):
                  depth=3,
                  dilation_growth_rate=3,
                  activation='relu',
-                 norm=None):
+                 norm=None,
+                 sep_decoder=False):
         super().__init__()
         if args.dataname == 'kit':
             self.nb_joints = 21
@@ -33,7 +35,12 @@ class VQVAE_SEP(nn.Module):
         # self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
         
         # self.encoder = Encoder(output_dim, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
-        self.decoder = Decoder(output_dim, code_dim, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)        
+        self.sep_decoder = sep_decoder
+        if self.sep_decoder:
+            self.decoder_upper = Decoder(upper_dim, int(code_dim/2), down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)        
+            self.decoder_lower = Decoder(lower_dim, int(code_dim/2), down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)        
+        else:
+            self.decoder = Decoder(output_dim, code_dim, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)        
 
 
         self.num_code = nb_code
@@ -57,7 +64,8 @@ class VQVAE_SEP(nn.Module):
     def forward(self, x, *args, type='full', **kwargs):
         '''type=[full, encode, decode]'''
         if type=='full':
-            upper_emb, lower_emb = upper_lower_sep(x, self.nb_joints)
+            upper_emb = get_part_mask(HML_UPPER_BODY_MASK, x)
+            lower_emb = get_part_mask(HML_LOWER_BODY_MASK, x)
             upper_emb = self.preprocess(upper_emb)
             upper_emb = self.encoder_upper(upper_emb)
             upper_emb, loss_upper, perplexity = self.quantizer_upper(upper_emb)
@@ -71,7 +79,6 @@ class VQVAE_SEP(nn.Module):
                 upper_emb = self.rand_emb_idx(upper_emb, self.quantizer_upper, kwargs['idx_noise'])
                 lower_emb = self.rand_emb_idx(lower_emb, self.quantizer_lower, kwargs['idx_noise'])
 
-            x_quantized = torch.cat([upper_emb, lower_emb], dim=1)
 
             # x_in = self.preprocess(x)
             # x_encoder = self.encoder(x_in)
@@ -80,13 +87,21 @@ class VQVAE_SEP(nn.Module):
             # x_quantized, loss, perplexity  = self.quantizer(x_encoder)
 
             ## decoder
-            x_decoder = self.decoder(x_quantized)
-            x_out = self.postprocess(x_decoder)
+            if self.sep_decoder:
+                x_decoder_upper = self.decoder_upper(upper_emb)
+                x_decoder_upper = self.postprocess(x_decoder_upper)
+                x_decoder_lower = self.decoder_lower(lower_emb)
+                x_decoder_lower = self.postprocess(x_decoder_lower)
+                x_out = merge_upper_lower(x_decoder_upper, x_decoder_lower)
+            else:
+                x_quantized = torch.cat([upper_emb, lower_emb], dim=1)
+                x_decoder = self.decoder(x_quantized)
+                x_out = self.postprocess(x_decoder)
             
             return x_out, loss, perplexity
         elif type=='encode':
             N, T, _ = x.shape
-            upper_emb, lower_emb = upper_lower_sep(x, self.nb_joints)
+            upper_emb = get_part_mask(HML_UPPER_BODY_MASK, x)
             upper_emb = self.preprocess(upper_emb)
             upper_emb = self.encoder_upper(upper_emb)
             upper_emb = self.postprocess(upper_emb)
@@ -94,6 +109,7 @@ class VQVAE_SEP(nn.Module):
             upper_code_idx = self.quantizer_upper.quantize(upper_emb)
             upper_code_idx = upper_code_idx.view(N, -1)
 
+            lower_emb = get_part_mask(HML_LOWER_BODY_MASK, x)
             lower_emb = self.preprocess(lower_emb)
             lower_emb = self.encoder_lower(lower_emb)
             lower_emb = self.postprocess(lower_emb)
@@ -105,13 +121,27 @@ class VQVAE_SEP(nn.Module):
             return code_idx
 
         elif type=='decode':
-            x_d_upper = self.quantizer_upper.dequantize(x[..., 0])
-            x_d_lower = self.quantizer_lower.dequantize(x[..., 1])
-            x_d = torch.cat([x_d_upper, x_d_lower], dim=-1)
-            x_d = x_d.permute(0, 2, 1).contiguous()
-            x_decoder = self.decoder(x_d)
-            x_out = self.postprocess(x_decoder)
-            return x_out
+            if self.sep_decoder:
+                x_d_upper = self.quantizer_upper.dequantize(x[..., 0])
+                x_d_upper = x_d_upper.permute(0, 2, 1).contiguous()
+                x_d_upper = self.decoder_upper(x_d_upper)
+                x_d_upper = self.postprocess(x_d_upper)
+
+                x_d_lower = self.quantizer_lower.dequantize(x[..., 1])
+                x_d_lower = x_d_lower.permute(0, 2, 1).contiguous()
+                x_d_lower = self.decoder_lower(x_d_lower)
+                x_d_lower = self.postprocess(x_d_lower)
+            
+                x_out = merge_upper_lower(x_d_upper, x_d_lower)
+                return x_out
+            else:
+                x_d_upper = self.quantizer_upper.dequantize(x[..., 0])
+                x_d_lower = self.quantizer_lower.dequantize(x[..., 1])
+                x_d = torch.cat([x_d_upper, x_d_lower], dim=-1)
+                x_d = x_d.permute(0, 2, 1).contiguous()
+                x_decoder = self.decoder(x_d)
+                x_out = self.postprocess(x_decoder)
+                return x_out
 
     def preprocess(self, x):
         # (bs, T, Jx3) -> (bs, Jx3, T)
@@ -122,6 +152,25 @@ class VQVAE_SEP(nn.Module):
         # (bs, Jx3, T) ->  (bs, T, Jx3)
         x = x.permute(0,2,1)
         return x
+
+
+def get_part_mask(PART, motion):
+    mask_part = torch.tensor(PART, dtype=torch.bool, device=motion.device)
+    mask_part = mask_part.repeat(*motion.shape[:2], 1)
+    emb_part = motion[mask_part].reshape(*motion.shape[:2], -1)
+    return emb_part
+
+def set_part_mask(PART, motion, part_emb):
+    mask_part = torch.tensor(PART, dtype=torch.bool, device=motion.device)
+    mask_part = mask_part.repeat(*motion.shape[:2], 1)
+    motion[mask_part] = part_emb.reshape(-1)
+    return motion
+
+def merge_upper_lower(upper_emb, lower_emb):
+    motion = torch.empty(*upper_emb.shape[:2], 263).to(upper_emb.device)
+    motion = set_part_mask(HML_UPPER_BODY_MASK, motion, upper_emb)
+    motion = set_part_mask(HML_LOWER_BODY_MASK, motion, lower_emb)
+    return motion
 
 def upper_lower_sep(motion, joints_num):
     # root
