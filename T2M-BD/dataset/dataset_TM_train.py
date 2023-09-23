@@ -7,7 +7,8 @@ import codecs as cs
 from tqdm import tqdm
 import utils.paramUtil as paramUtil
 from torch.utils.data._utils.collate import default_collate
-
+import random
+import math
 
 def collate_fn(batch):
     batch.sort(key=lambda x: x[3], reverse=True)
@@ -131,6 +132,10 @@ class Text2MotionDataset(data.Dataset):
         m_tokens_len = m_tokens.shape[0]
 
         if self.up_low_sep:
+            new_len = random.randint(20, self.max_motion_length-1)
+            len_mult = math.ceil(new_len/m_tokens_len)
+            m_tokens = np.tile(m_tokens, (len_mult, 1))[:new_len]
+            m_tokens_len = new_len
             if m_tokens_len+1 < self.max_motion_length:
                 m_tokens = np.concatenate([m_tokens, np.ones((1, 2), dtype=int) * self.mot_end_idx, np.ones((self.max_motion_length-1-m_tokens_len, 2), dtype=int) * self.mot_pad_idx], axis=0)
             else:

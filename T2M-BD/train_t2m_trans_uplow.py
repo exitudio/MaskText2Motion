@@ -205,6 +205,10 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     r_indices_lower = torch.randint_like(target_lower, args.nb_code)
     input_indices_lower = mask_lower*target_lower+(1-mask_lower)*mask_id
 
+    # proba_txt = torch.randint(low=5, high=11, size=(target_lower.shape[0],))/10
+    # proba_txt = proba_txt[:, None].cuda()
+    # txt_mark = torch.bernoulli(proba_txt * torch.ones(target_lower.shape, device=target.device))
+
     # Time step masking
     # rand_time = uniform((batch_size,), device = target.device)
     # rand_mask_probs = cosine_schedule(rand_time)
@@ -218,8 +222,8 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     # masked_target = torch.where(mask_token, input=input_indices, other=-1)
     masked_input_indices = torch.where(mask_token, mask_id, input_indices)
 
-    att_txt = None # CFG: torch.rand((seq_mask.shape[0], 1)) > 0.1
-    cls_pred = trans_encoder(masked_input_indices, input_indices_lower, feat_clip_text, src_mask = seq_mask, att_txt=att_txt)[:, 1:]
+    att_txt = None #proba != 1 # CFG: torch.rand((seq_mask.shape[0], 1)) > 0.1
+    cls_pred = trans_encoder(masked_input_indices, input_indices_lower, feat_clip_text, src_mask = seq_mask, att_txt=att_txt)[:, 1:] #, txt_mark=txt_mark
 
     # [INFO] Compute xent loss as a batch
     weights = seq_mask_no_end / (seq_mask_no_end.sum(-1).unsqueeze(-1) * seq_mask_no_end.shape[0])

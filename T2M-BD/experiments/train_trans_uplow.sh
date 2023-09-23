@@ -3,9 +3,9 @@
 # sbatch train_trans.sh
 
 # cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
-# screen -L -Logfile HML3D_40_upperEdit_vqUpperLowerSep_transMaskLower -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans_uplow.sh
+# screen -L -Logfile HML3D_41_upperEdit_transMaskLower_randLen -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans_uplow.sh
 
-#SBATCH --job-name=HML3D_40_upperEdit_vqUpperLowerSep_transMaskLower
+#SBATCH --job-name=HML3D_41_upperEdit_transMaskLower_randLen
 #SBATCH --partition=GPU
 #SBATCH --gres=gpu:4
 #SBATCH --nodes=1
@@ -17,11 +17,11 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='HML3D_40_upperEdit_vqUpperLowerSep_transMaskLower' # TEMP
+name='HML3D_41_upperEdit_transMaskLower_randLen' # TEMP
 dataset_name='t2m'
-vq_name='2023-09-16-09-41-02_27_HML3D_upperLower_8192x32_shuffleIdx'
+vq_name='2023-08-08-00-29-40_16_VQVAE_upperlower_notShareCB_20batchResetNRandom_8192x32'
 debug='f'
-export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export CUDA_LAUNCH_BLOCKING=1
 # --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/2023-04-08-08-16-27_2_train_withEval/net_last.pth
 MULTI_BATCH=4

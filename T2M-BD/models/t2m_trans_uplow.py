@@ -307,15 +307,19 @@ class Text2Motion_Transformer(nn.Module):
         else:
             raise ValueError(f'Unknown "{type}" type')
         
-    def get_attn_mask(self, src_mask, att_txt=None):
+    def get_attn_mask(self, src_mask, att_txt=None, txt_mark=None):
         if att_txt is None:
             att_txt = torch.tensor([[True]]*src_mask.shape[0]).to(src_mask.device)
         src_mask = torch.cat([att_txt, src_mask],  dim=1)
         B, T = src_mask.shape
         src_mask = src_mask.view(B, 1, 1, T).repeat(1, self.n_head, T, 1)
+        if txt_mark is not None:
+            att_txt_txt = torch.tensor([[True]]*txt_mark.shape[0]).to(txt_mark.device)
+            txt_mark = torch.cat([att_txt_txt, txt_mark],  dim=1)
+            src_mask[:, :, :, 0] = txt_mark.view(B, 1, T).repeat(1, self.n_head, 1)
         return src_mask
 
-    def forward_function(self, idx_upper, idx_lower, clip_feature, src_mask=None, att_txt=None):
+    def forward_function(self, idx_upper, idx_lower, clip_feature, src_mask=None, att_txt=None, txt_mark=None):
         # MLD:
         # if att_txt is None:
         #     att_txt = torch.tensor([[True]]*src_mask.shape[0]).to(src_mask.device)
@@ -324,7 +328,7 @@ class Text2Motion_Transformer(nn.Module):
 
         # T2M-BD
         if src_mask is not None:
-            src_mask = self.get_attn_mask(src_mask, att_txt)
+            src_mask = self.get_attn_mask(src_mask, att_txt, txt_mark)
         feat = self.trans_base(idx_upper, idx_lower, clip_feature, src_mask)
         logits = self.trans_head(feat, src_mask)
 
