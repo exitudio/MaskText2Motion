@@ -2,6 +2,7 @@ import models.vqvae as vqvae
 import models.t2m_trans as trans
 import torch
 import clip
+from exit.utils import base_dir
 
 class Temp:
     def __init__(self):
@@ -28,8 +29,8 @@ args.ff_rate = 4
 args.quantizer = "ema_reset"
 args.mu = 0.99
 
-args.resume_pth = '/home/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32/net_last.pth'
-args.resume_trans = '/home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-08-04-23-08-30_HML3D_36_token1stStage_cdim8192_32_lr0.0001_mask.5-1/net_last.pth'
+args.resume_pth = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32/net_last.pth'
+args.resume_trans = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-08-04-23-08-30_HML3D_36_token1stStage_cdim8192_32_lr0.0001_mask.5-1/net_last.pth'
 
 net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
                     args.nb_code,

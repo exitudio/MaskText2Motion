@@ -8,6 +8,7 @@ class SpeedInfo:
     def __init__(self, save_path):
         self.record = []
         self.save_path = save_path
+        self.time = []
 
     def start(self):
         self.start_time = datetime.datetime.now()
@@ -15,28 +16,33 @@ class SpeedInfo:
     def end(self, text, length):
         self.end_time = datetime.datetime.now()
         self.start_time
+        diff_time = (self.end_time-self.start_time).total_seconds()
         info = {
-            'time': (self.end_time-self.start_time).total_seconds(),
+            'time': diff_time,
             'length': length,
             'text': text
         }
+        self.time.append(diff_time)
         self.record.append(info)
         print('info:', info)
 
     def save(self):
         from pathlib import Path
         Path('/'.join(self.save_path.split('/')[:-1])).mkdir(parents=True, exist_ok=True)
-        np.save(self.save_path, self.record)
-    
+        np.save(f'{self.save_path}/exit2m.npy', self.record)
+        f = open(f'{self.save_path}/speed.txt', "a")
+        f.write("Avg speed:"+str(np.array(self.time).mean()))
+        f.write("Total sample:"+str(len(self.time)))
+        f.close()
     def reset(self):
         self.record = []
 
-speed_info = SpeedInfo(f'{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/speedtest/exit2m.npy')
+speed_info = SpeedInfo(f'{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/speedtest/')
 
 from speedtest_models.exit2m import run_speed_test
 import os
 import numpy as np
-speedtest_data_dir = f'{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/speedtest_models/speedtest_data.npy'
+speedtest_data_dir = 'speedtest_models/speedtest_data.npy'
 if not os.path.isfile(speedtest_data_dir):
     speed_test_data = []
     w_vectorizer = WordVectorizer('./glove', 'our_vab')
