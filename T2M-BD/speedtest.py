@@ -2,6 +2,7 @@ from utils.word_vectorizer import WordVectorizer
 from dataset import dataset_TM_eval
 from tqdm import tqdm
 import datetime
+from exit.utils import base_dir
 
 class SpeedInfo:
     def __init__(self, save_path):
@@ -30,12 +31,12 @@ class SpeedInfo:
     def reset(self):
         self.record = []
 
-speed_info = SpeedInfo('output/speedtest/exit2m.npy')
+speed_info = SpeedInfo(f'{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/speedtest/exit2m.npy')
 
 from speedtest_models.exit2m import run_speed_test
 import os
 import numpy as np
-speedtest_data_dir = 'speedtest_models/speedtest_data.npy'
+speedtest_data_dir = f'{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/speedtest_models/speedtest_data.npy'
 if not os.path.isfile(speedtest_data_dir):
     speed_test_data = []
     w_vectorizer = WordVectorizer('./glove', 'our_vab')
