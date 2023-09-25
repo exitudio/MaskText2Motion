@@ -373,6 +373,8 @@ class Text2Motion_Transformer(nn.Module):
         sample_max_steps = torch.round(max_steps/max_length*m_tokens_len) + 1e-8
         for step in range(max_steps):
             timestep = torch.clip(step/(sample_max_steps), max=1)
+            if len(m_tokens_len)==1 and step > 0 and torch.clip(step-1/(sample_max_steps), max=1).cpu().item() == timestep:
+                break 
             rand_mask_prob = cosine_schedule(timestep) # timestep #
             num_token_masked = (rand_mask_prob * m_tokens_len).long().clip(min=1)
             # [INFO] rm no motion frames
