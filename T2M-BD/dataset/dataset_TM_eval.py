@@ -17,7 +17,7 @@ def collate_fn(batch):
 
 '''For use of training text-2-motion generative model'''
 class Text2MotionDataset(data.Dataset):
-    def __init__(self, dataset_name, is_test, w_vectorizer, feat_bias = 5, max_text_len = 20, unit_length = 4):
+    def __init__(self, dataset_name, is_test, w_vectorizer, feat_bias = 5, max_text_len = 20, unit_length = 4, shuffle=True):
         
         self.max_length = 20
         self.pointer = 0
@@ -128,6 +128,7 @@ class Text2MotionDataset(data.Dataset):
         self.data_dict = data_dict
         self.name_list = name_list
         self.reset_max_len(self.max_length)
+        self.shuffle = shuffle
 
     def reset_max_len(self, length):
         assert length <= self.max_motion_length
@@ -173,7 +174,7 @@ class Text2MotionDataset(data.Dataset):
         pos_one_hots = np.concatenate(pos_one_hots, axis=0)
         word_embeddings = np.concatenate(word_embeddings, axis=0)
 
-        if self.unit_length < 10:
+        if self.unit_length < 10 and self.shuffle:
             coin2 = np.random.choice(['single', 'single', 'double'])
         else:
             coin2 = 'single'
@@ -202,7 +203,7 @@ def DATALoader(dataset_name, is_test,
                 batch_size, w_vectorizer,
                 num_workers = 8, unit_length = 4, shuffle=True) : 
     
-    val_loader = torch.utils.data.DataLoader(Text2MotionDataset(dataset_name, is_test, w_vectorizer, unit_length=unit_length),
+    val_loader = torch.utils.data.DataLoader(Text2MotionDataset(dataset_name, is_test, w_vectorizer, unit_length=unit_length, shuffle=shuffle),
                                               batch_size,
                                               shuffle = shuffle,
                                               num_workers=num_workers,
