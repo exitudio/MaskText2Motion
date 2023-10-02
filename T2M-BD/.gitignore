@@ -157,3 +157,4 @@ render_final_t2m.py
 study/data
 usr
 study/vocab
+speedtest_models/speedtest_data.npy
