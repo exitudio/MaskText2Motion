@@ -2,15 +2,17 @@ import models.vqvae as vqvae
 import models.t2m_trans as trans
 import torch
 import clip
-from exit.utils import base_dir
+import sys
+sys.path.append('/home/epinyoan/git/MaskText2Motion/T2M-BD/speedtest_models')
+from speedtest_main import run_speed_test_all
 
 class Temp:
     def __init__(self):
         print('mock:: opt')
 args = Temp()
 args.dataname = 't2m'
-args.nb_code = 8192
-args.code_dim = 32
+args.nb_code = 512
+args.code_dim = 512
 args.output_emb_width = 512
 args.down_t = 2
 args.stride_t = 2
@@ -29,8 +31,8 @@ args.ff_rate = 4
 args.quantizer = "ema_reset"
 args.mu = 0.99
 
-args.resume_pth = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32/net_last.pth'
-args.resume_trans = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-08-04-23-08-30_HML3D_36_token1stStage_cdim8192_32_lr0.0001_mask.5-1/net_last.pth'
+args.resume_pth = 'pretrained/VQVAE/net_last.pth'
+args.resume_trans = 'pretrained/VQTransformer_corruption05/net_best_fid.pth'
 
 net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
                     args.nb_code,
@@ -46,8 +48,7 @@ net.load_state_dict(ckpt['net'], strict=True)
 net.eval()
 net.cuda()
 
-trans_encoder = trans.Text2Motion_Transformer(vqvae=net,
-                                num_vq=args.nb_code, 
+trans_encoder = trans.Text2Motion_Transformer(num_vq=args.nb_code, 
                                 embed_dim=args.embed_dim_gpt, 
                                 clip_dim=args.clip_dim, 
                                 block_size=args.block_size, 
@@ -68,50 +69,32 @@ for p in clip_model.parameters():
     p.requires_grad = False
 
 # https://github.com/openai/CLIP/issues/111
-class TextCLIP(torch.nn.Module):
-    def __init__(self, model) :
-        super(TextCLIP, self).__init__()
-        self.model = model
+# class TextCLIP(torch.nn.Module):
+#     def __init__(self, model) :
+#         super(TextCLIP, self).__init__()
+#         self.model = model
         
-    def forward(self,text):
-        return self.model.encode_text(text)
-clip_model = TextCLIP(clip_model)
-
-from models.len_predictor_modules import MotionLenEstimatorBiGRU
-from utils.word_vectorizer import WordVectorizer, POS_enumerator
-unit_length = 4
-dim_word = 300
-dim_pos_ohot = len(POS_enumerator)
-num_classes = 200 // unit_length
-estimator = MotionLenEstimatorBiGRU(dim_word, dim_pos_ohot, 512, num_classes)
-
-if args.dataname == 't2m':
-    cp = '/home/epinyoan/git/text-to-motion/checkpoints/t2m/length_est_bigru/model/latest.tar'
-elif args.dataname == 'kit':
-    cp = '/home/epinyoan/git/MaskText2Motion/T2M-BD/checkpoints/kit/length_est_bigru/model/latest.tar'
-checkpoints = torch.load(cp, map_location='cpu')
-estimator.load_state_dict(checkpoints['estimator'], strict=True)
-estimator.cuda()
-estimator.eval()
-softmax = torch.nn.Softmax(-1)
+#     def forward(self,text):
+#         return self.model.encode_text(text)
+# clip_model = TextCLIP(clip_model)
 
 def run_speed_test(batch, speed_info):
-    clip_text, m_length, word_embeddings, pos_one_hots, sent_len = batch
+    clip_text, m_length = batch
     k = 0
     
     speed_info.start()
     text = clip.tokenize(clip_text, truncate=True).cuda()
-    feat_clip_text = clip_model(text).float()
+    feat_clip_text = clip_model.encode_text(text).float()
 
     m_tokens_len = torch.ceil((m_length)/4)
     pred_len = m_length.cuda()
     pred_tok_len = m_tokens_len
-    if True:
-        pred_probs = estimator(word_embeddings.cuda().float(), pos_one_hots.cuda().float(), sent_len).detach()
-        pred_probs = softmax(pred_probs)
-        pred_tok_len = pred_probs.argsort(dim=-1, descending=True)[..., 0]
-        pred_len = pred_tok_len*4
-    index_motion = trans_encoder(feat_clip_text, type="sample", m_length=pred_len, rand_pos=False, CFG=-1)
+    # index_motion = trans_encoder(feat_clip_text, type="sample", m_length=pred_len, rand_pos=False, CFG=-1)
+    try:
+        index_motion = trans_encoder.sample(feat_clip_text[k:k+1], True)
+    except:
+        index_motion = torch.ones(1,1).cuda().long()
+    pred_pose = net.forward_decoder(index_motion)
+    speed_info.end(clip_text, m_length, pred_pose.shape[1])
 
-    pred_pose = net(index_motion[k:k+1, :int(pred_tok_len[k].item())], type='decode')
-    speed_info.end(clip_text, m_length, pred_len[0])
+run_speed_test_all(run_speed_test, 'T2M-GPT')

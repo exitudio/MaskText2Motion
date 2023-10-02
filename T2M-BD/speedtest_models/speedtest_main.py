@@ -16,14 +16,15 @@ class SpeedInfo:
     def start(self):
         self.start_time = datetime.datetime.now()
     
-    def end(self, text, length):
+    def end(self, text, length, pred_len=None):
         self.end_time = datetime.datetime.now()
         self.start_time
         diff_time = (self.end_time-self.start_time).total_seconds()
         info = {
             'time': diff_time,
             'length': length,
-            'text': text
+            'text': text,
+            'pred_len': pred_len
         }
         self.time.append(diff_time)
         self.record.append(info)
