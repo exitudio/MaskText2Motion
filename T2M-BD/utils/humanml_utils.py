@@ -52,3 +52,17 @@ HML_LOWER_BODY_MASK = np.concatenate(([True]*(1+2+1),
                                      HML_LOWER_BODY_JOINTS_BINARY.repeat(3),
                                      [True]*4))
 HML_UPPER_BODY_MASK = ~HML_LOWER_BODY_MASK
+
+
+ALL_JOINT_FALSE = np.full(*HML_ROOT_BINARY.shape, False)
+HML_UPPER_BODY_JOINTS_BINARY = np.array([i in SMPL_UPPER_BODY_JOINTS for i in range(NUM_HML_JOINTS)])
+
+UPPER_JOINT_Y_TRUE = np.array([ALL_JOINT_FALSE[1:], HML_UPPER_BODY_JOINTS_BINARY[1:], ALL_JOINT_FALSE[1:]])
+UPPER_JOINT_Y_TRUE = UPPER_JOINT_Y_TRUE.T
+UPPER_JOINT_Y_TRUE = UPPER_JOINT_Y_TRUE.reshape(ALL_JOINT_FALSE[1:].shape[0]*3)
+
+UPPER_JOINT_Y_MASK = np.concatenate(([False]*(1+2+1),
+                                UPPER_JOINT_Y_TRUE,
+                                ALL_JOINT_FALSE[1:].repeat(6),
+                                ALL_JOINT_FALSE.repeat(3),
+                                [False] * 4))

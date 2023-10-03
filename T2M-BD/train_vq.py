@@ -85,6 +85,8 @@ if args.sep_uplow:
                         args.dilation_growth_rate,
                         args.vq_act,
                         args.vq_norm,
+                        {'mean': torch.from_numpy(train_loader.dataset.mean).cuda().float(), 
+                        'std': torch.from_numpy(train_loader.dataset.std).cuda().float()},
                         True)
 else:
     net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
