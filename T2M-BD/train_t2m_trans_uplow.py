@@ -84,7 +84,11 @@ net = VQVAE_SEP(args, ## use args to define different parameters in different qu
                        args.stride_t,
                        args.width,
                        args.depth,
-                       args.dilation_growth_rate)
+                       args.dilation_growth_rate,
+                       moment={'mean': torch.from_numpy(val_loader.dataset.mean).cuda().float(), 
+                        'std': torch.from_numpy(val_loader.dataset.std).cuda().float()},
+                       sep_decoder=True)
+                       
 class VQVAE_WRAPPER(torch.nn.Module):
     def __init__(self, vqvae) :
         super().__init__()

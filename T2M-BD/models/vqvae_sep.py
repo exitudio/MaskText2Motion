@@ -33,9 +33,10 @@ class VQVAE_SEP(nn.Module):
             upper_dim = 156        
             lower_dim = 107 
         self.code_dim = code_dim
-        self.moment = moment
-        self.register_buffer('mean_upper', torch.tensor([0.1217, 0.2488, 0.2967, 0.5027, 0.4053, 0.4100, 0.5702, 0.4030, 0.4078, 0.1995, 0.1993, 0.0662, 0.0641], dtype=torch.float32))
-        self.register_buffer('std_upper', torch.tensor([0.0162, 0.0410, 0.0522, 0.0863, 0.0693, 0.0701, 0.1108, 0.0851, 0.0845, 0.1290, 0.1291, 0.2464, 0.2485], dtype=torch.float32))
+        if moment is not None:
+            self.moment = moment
+            self.register_buffer('mean_upper', torch.tensor([0.1216, 0.2488, 0.2967, 0.5027, 0.4053, 0.4100, 0.5703, 0.4030, 0.4078, 0.1994, 0.1992, 0.0661, 0.0639], dtype=torch.float32))
+            self.register_buffer('std_upper', torch.tensor([0.0164, 0.0412, 0.0523, 0.0864, 0.0695, 0.0703, 0.1108, 0.0853, 0.0847, 0.1289, 0.1291, 0.2463, 0.2484], dtype=torch.float32))
         # self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
         
         # self.encoder = Encoder(output_dim, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
@@ -77,12 +78,30 @@ class VQVAE_SEP(nn.Module):
     def denormalize_upper(self, data):
         return data * self.std_upper + self.mean_upper
     
+    def shift_upper_down(self, data):
+        data = data.clone()
+        data = self.denormalize(data)
+        shift_y = data[..., 3:4].clone()
+        data[..., UPPER_JOINT_Y_MASK] -= shift_y
+        _data = data.clone()
+        data = self.normalize(data)
+        data[..., UPPER_JOINT_Y_MASK] = self.normalize_upper(_data[..., UPPER_JOINT_Y_MASK])
+        return data
+    
+    def shift_upper_up(self, data):
+        _data = data.clone()
+        data = self.denormalize(data)
+        data[..., UPPER_JOINT_Y_MASK] = self.denormalize_upper(_data[..., UPPER_JOINT_Y_MASK])
+        shift_y = data[..., 3:4].clone()
+        data[..., UPPER_JOINT_Y_MASK] += shift_y
+        data = self.normalize(data)
+        return data
+    
     def forward(self, x, *args, type='full', **kwargs):
         '''type=[full, encode, decode]'''
         if type=='full':
             x = x.float()
-            _x = self.denormalize(x)
-            x[..., UPPER_JOINT_Y_MASK] = self.normalize_upper(_x[..., UPPER_JOINT_Y_MASK])
+            x = self.shift_upper_down(x)
 
             upper_emb = x[..., HML_UPPER_BODY_MASK]
             lower_emb = x[..., HML_LOWER_BODY_MASK]
@@ -113,8 +132,7 @@ class VQVAE_SEP(nn.Module):
                 x_decoder_lower = self.decoder_lower(lower_emb)
                 x_decoder_lower = self.postprocess(x_decoder_lower)
                 x_out = merge_upper_lower(x_decoder_upper, x_decoder_lower)
-                x_out[..., UPPER_JOINT_Y_MASK] = self.denormalize_upper(x_out[..., UPPER_JOINT_Y_MASK])
-                x_out[..., UPPER_JOINT_Y_MASK] = self.normalize(x_out)[..., UPPER_JOINT_Y_MASK]
+                x_out = self.shift_upper_up(x_out)
 
             else:
                 x_quantized = torch.cat([upper_emb, lower_emb], dim=1)
@@ -124,8 +142,7 @@ class VQVAE_SEP(nn.Module):
             return x_out, loss, perplexity
         elif type=='encode':
             N, T, _ = x.shape
-            _x = self.denormalize(x)
-            x[..., UPPER_JOINT_Y_MASK] = self.normalize_upper(_x[..., UPPER_JOINT_Y_MASK])
+            x = self.shift_upper_down(x)
 
             upper_emb = x[..., HML_UPPER_BODY_MASK]
             upper_emb = self.preprocess(upper_emb)
@@ -159,8 +176,7 @@ class VQVAE_SEP(nn.Module):
                 x_d_lower = self.postprocess(x_d_lower)
             
                 x_out = merge_upper_lower(x_d_upper, x_d_lower)
-                x_out[..., UPPER_JOINT_Y_MASK] = self.denormalize_upper(x_out[..., UPPER_JOINT_Y_MASK])
-                x_out[..., UPPER_JOINT_Y_MASK] = self.normalize(x_out)[..., UPPER_JOINT_Y_MASK]
+                x_out = self.shift_upper_up(x_out)
                 return x_out
             else:
                 x_d_upper = self.quantizer_upper.dequantize(x[..., 0])

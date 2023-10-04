@@ -17,10 +17,10 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='26_VQVAE_batch512'
+name='29_VQVAE_uplow_sepDec_moveUpperDown'
 dataset_name='t2m'
 debug='f'
-export CUDA_VISIBLE_DEVICES=4
+export CUDA_VISIBLE_DEVICES=1
 python3 train_vq.py \
     --batch-size 256 \
     --lr 2e-4 \
@@ -38,7 +38,7 @@ python3 train_vq.py \
     --quantizer ema_reset \
     --loss-vel 0.5 \
     --recons-loss l1_smooth \
-    --exp-name ${name}
-    # --sep-uplow
+    --exp-name ${name} \
+    --sep-uplow
 
 sleep 500

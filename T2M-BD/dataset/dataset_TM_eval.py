@@ -189,7 +189,7 @@ class Text2MotionDataset(data.Dataset):
         "Z Normalization"
         motion = (motion - self.mean) / self.std
 
-        if m_length < self.max_motion_length:
+        if m_length < self.max_motion_length and self.shuffle:
             motion = np.concatenate([motion,
                                      np.zeros((self.max_motion_length - m_length, motion.shape[1]))
                                      ], axis=0)
