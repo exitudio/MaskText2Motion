@@ -159,9 +159,9 @@ for nb_iter in tqdm(range(1, args.total_iter + 1)):
     gt_motion = gt_motion.cuda().float() # bs, nb_joints, joints_dim, seq_len
     
     if args.sep_uplow:
-        pred_motion, loss_commit, perplexity = net(gt_motion)
+        pred_motion, loss_commit, perplexity = net(gt_motion, idx_noise=0)
     else:
-        pred_motion, loss_commit, perplexity = net(gt_motion, idx_noise=.1)
+        pred_motion, loss_commit, perplexity = net(gt_motion)
     loss_motion = Loss(pred_motion, gt_motion)
     loss_vel = Loss.forward_joint(pred_motion, gt_motion)
     
