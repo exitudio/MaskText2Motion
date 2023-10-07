@@ -19,7 +19,7 @@ cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
 name='HML3D_43_upperEdit_transMaskLower_randLen_moveUpperDown' # TEMP
 dataset_name='t2m'
-vq_name='2023-10-03-13-06-57_29_VQVAE_uplow_sepDec_moveUpperDown'
+vq_name='2023-10-04-07-27-56_29_VQVAE_uplow_sepDec_moveUpperDown'
 debug='f'
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export CUDA_LAUNCH_BLOCKING=1
