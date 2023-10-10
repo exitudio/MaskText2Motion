@@ -166,8 +166,14 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
 
 
 @torch.no_grad()        
-def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, dataname, draw = True, save = True, savegif=False, num_repeat=1, rand_pos=False, CFG=-1) : 
-    is_pred_len = True
+def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, dataname='t2m', draw = True, save = True, savegif=False, num_repeat=1, rand_pos=False, CFG=-1) : 
+    if num_repeat < 0:
+        is_avg_all = True
+        num_repeat = -num_repeat
+    else:
+        is_avg_all = False
+
+    is_pred_len = False
     
     if is_pred_len:
         from models.len_predictor_modules import MotionLenEstimatorBiGRU
@@ -263,7 +269,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
 
             motion_multimodality_batch.append(em_pred.reshape(bs, 1, -1))
             
-            if i == 0:
+            if i == 0 or is_avg_all:
                 pose = pose.cuda().float()
                 
                 et, em = eval_wrapper.get_co_embeddings(word_embeddings, pos_one_hots, sent_len, pose, m_length)
