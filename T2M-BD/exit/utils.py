@@ -251,6 +251,9 @@ def copyComplete(source, target):
 data_permission = os.access('/data/epinyoan', os.R_OK | os.W_OK | os.X_OK)
 base_dir = '/data' if data_permission else '/home'
 def init_save_folder(args):
+    ##########################################################################################################################################################
+    ## If the experiment folder cannot be deleted the problem is the parent folder (t2m,vq,eval) are created by root. Need to create manually by ourself.
+    ##############################################################################################################
     import glob
     global base_dir
     if args.exp_name != 'TEMP':
