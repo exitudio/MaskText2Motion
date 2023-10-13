@@ -72,7 +72,14 @@ class TextCLIP(torch.nn.Module):
         self.model = model
         
     def forward(self,text):
-        return self.model.encode_text(text)
+        with torch.no_grad():
+            word_emb = self.model.token_embedding(text).type(self.model.dtype)
+            word_emb = word_emb + self.model.positional_embedding.type(self.model.dtype)
+            word_emb = word_emb.permute(1, 0, 2)  # NLD -> LND
+            word_emb = self.model.transformer(word_emb)
+            word_emb = self.model.ln_final(word_emb).permute(1, 0, 2).float()
+            enctxt = self.model.encode_text(text).float()
+        return enctxt, word_emb
 clip_model = TextCLIP(clip_model)
 
 net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
@@ -168,7 +175,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     
     text = clip.tokenize(clip_text, truncate=True).cuda()
     
-    feat_clip_text = clip_model(text).float()
+    feat_clip_text, word_emb = clip_model(text)
 
     # [INFO] Swap input tokens
     if args.pkeep == -1:
@@ -199,7 +206,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     masked_input_indices = torch.where(mask_token, mask_id, input_indices)
 
     att_txt = None # CFG: torch.rand((seq_mask.shape[0], 1)) > 0.1
-    cls_pred = trans_encoder(masked_input_indices, feat_clip_text, src_mask = seq_mask, att_txt=att_txt)[:, 1:]
+    cls_pred = trans_encoder(masked_input_indices, feat_clip_text, src_mask = seq_mask, att_txt=att_txt, word_emb=word_emb)[:, 1:]
 
     # [INFO] Compute xent loss as a batch
     weights = seq_mask_no_end / (seq_mask_no_end.sum(-1).unsqueeze(-1) * seq_mask_no_end.shape[0])
@@ -236,7 +243,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
         num_repeat = 1
         rand_pos = False
         if nb_iter == args.total_iter:
-            num_repeat = 30
+            num_repeat = -30
             rand_pos = True
             val_loader = dataset_TM_eval.DATALoader(args.dataname, True, 32, w_vectorizer)
         pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, best_multi, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model=clip_model, eval_wrapper=eval_wrapper, dataname=args.dataname, num_repeat=num_repeat, rand_pos=rand_pos)

@@ -3,7 +3,7 @@
 # sbatch train_trans.sh
 
 # cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
-# screen -L -Logfile HML3D_36_token1stStage_cdim8192_32_lr0.0001 -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
+# screen -L -Logfile HML3D_46_crsAtt1lyr_mask0.5-1_resetEpoch -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
 
 #SBATCH --job-name=HML3D_36_token1stStage_cdim8192_32_lr0.0001
 #SBATCH --partition=GPU
@@ -17,9 +17,9 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='HML3D_36_token1stStage_cdim8192_32_lr0.0001' # TEMP
+name='HML3D_46_crsAtt1lyr_mask0.5-1_resetEpoch' # TEMP
 dataset_name='t2m'
-vq_name='2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32'
+vq_name='2023-08-04-00-23-56_12_VQVAE_20batchResetNRandom_8192_32_resetEachEpoch'
 debug='f'
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export CUDA_LAUNCH_BLOCKING=1
@@ -30,6 +30,7 @@ python3 train_t2m_trans.py  \
     --exp-name ${name} \
     --batch-size $((128*MULTI_BATCH)) \
     --num-layers 9 \
+    ----num-local-layer 1 \
     --embed-dim-gpt 1024 \
     --nb-code 8192 \
     --code-dim 32 \

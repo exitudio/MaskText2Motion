@@ -220,7 +220,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
         
         text = clip.tokenize(clip_text, truncate=True).cuda()
 
-        feat_clip_text = clip_model(text).float()
+        feat_clip_text, word_emb = clip_model(text)
         
         motion_multimodality_batch = []
         m_tokens_len = torch.ceil((m_length)/4)
@@ -240,7 +240,7 @@ def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_i
             pred_pose_eval = torch.zeros((bs, seq, pose.shape[-1])).cuda()
             # pred_len = torch.ones(bs).long()
 
-            index_motion = trans(feat_clip_text, type="sample", m_length=pred_len, rand_pos=rand_pos, CFG=CFG)
+            index_motion = trans(feat_clip_text, word_emb, type="sample", m_length=pred_len, rand_pos=rand_pos, CFG=CFG)
             # [INFO] 1. this get the last index of blank_id
             # pred_length = (index_motion == blank_id).int().argmax(1).float()
             # [INFO] 2. this get the first index of blank_id

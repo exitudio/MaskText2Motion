@@ -53,7 +53,14 @@ class TextCLIP(torch.nn.Module):
         self.model = model
         
     def forward(self,text):
-        return self.model.encode_text(text)
+        with torch.no_grad():
+            word_emb = self.model.token_embedding(text).type(self.model.dtype)
+            word_emb = word_emb + self.model.positional_embedding.type(self.model.dtype)
+            word_emb = word_emb.permute(1, 0, 2)  # NLD -> LND
+            word_emb = self.model.transformer(word_emb)
+            word_emb = self.model.ln_final(word_emb).permute(1, 0, 2).float()
+            enctxt = self.model.encode_text(text).float()
+        return enctxt, word_emb
 clip_model = TextCLIP(clip_model)
 
 net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
@@ -73,6 +80,7 @@ trans_encoder = trans.Text2Motion_Transformer(net,
                                 clip_dim=args.clip_dim, 
                                 block_size=args.block_size, 
                                 num_layers=args.num_layers, 
+                                num_local_layer=args.num_local_layer, 
                                 n_head=args.n_head_gpt, 
                                 drop_out_rate=args.drop_out_rate, 
                                 fc_rate=args.ff_rate)

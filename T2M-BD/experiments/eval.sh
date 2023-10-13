@@ -26,6 +26,7 @@ python3 GPT_eval_multi.py  \
     --exp-name ${name} \
     --batch-size 128 \
     --num-layers 9 \
+    --num-local-layer 4 \
     --embed-dim-gpt 1024 \
     --nb-code 8192 \
     --code-dim 32 \
@@ -47,5 +48,5 @@ python3 GPT_eval_multi.py  \
     --pkeep 0.5 \
     --dilation-growth-rate 3 \
     --vq-act relu \
-    --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-08-04-23-08-30_HML3D_36_token1stStage_cdim8192_32_lr0.0001_mask.5-1/net_last.pth
+    --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-10-09-09-33-53_HML3D_44_crsAtt4lyr_mask0.5-1_2/net_last.pth
 sleep 500

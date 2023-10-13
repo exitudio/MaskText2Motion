@@ -40,6 +40,7 @@ def get_args_parser():
     parser.add_argument("--embed-dim-gpt", type=int, default=512, help="embedding dimension")
     parser.add_argument("--clip-dim", type=int, default=512, help="latent dimension in the clip feature")
     parser.add_argument("--num-layers", type=int, default=2, help="nb of transformer layers")
+    parser.add_argument("--num-local-layer", type=int, default=1, help="nb of transformer local layers")
     parser.add_argument("--n-head-gpt", type=int, default=8, help="nb of heads")
     parser.add_argument("--ff-rate", type=int, default=4, help="feedforward size")
     parser.add_argument("--drop-out-rate", type=float, default=0.1, help="dropout ratio in the pos encoding")
