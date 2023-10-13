@@ -452,7 +452,7 @@ class Text2Motion_Transformer(nn.Module):
             return ids, temp
         return ids
     
-    def inpaint(self, first_tokens, last_tokens, clip_feature=None, inpaint_len=2, rand_pos=False):
+    def inpaint(self, first_tokens, last_tokens, word_emb=None, clip_feature=None, inpaint_len=2, rand_pos=False):
         # support only one sample
         assert first_tokens.shape[0] == 1
         assert last_tokens.shape[0] == 1
@@ -520,7 +520,7 @@ class Text2Motion_Transformer(nn.Module):
             ids[:, :first_partition_pos_idx] = first_tokens
             ids[:, second_partition_pos_idx:end_pos_idx] = last_tokens
             
-            logits = self.forward(ids, clip_feature, src_token_mask, att_txt)[:,1:]
+            logits = self.forward(ids, clip_feature, src_token_mask, word_emb=word_emb)[:,1:]
             filtered_logits = logits #top_k(logits, topk_filter_thres)
             if rand_pos:
                 temperature = 1 #starting_temperature * (steps_until_x0 / timesteps) # temperature is annealed
