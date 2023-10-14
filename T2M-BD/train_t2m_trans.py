@@ -99,6 +99,7 @@ trans_encoder = trans.Text2Motion_Transformer(vqvae=net,
                                 clip_dim=args.clip_dim, 
                                 block_size=args.block_size, 
                                 num_layers=args.num_layers, 
+                                num_local_layer=args.num_local_layer, 
                                 n_head=args.n_head_gpt, 
                                 drop_out_rate=args.drop_out_rate, 
                                 fc_rate=args.ff_rate)
