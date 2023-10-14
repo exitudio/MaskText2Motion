@@ -30,7 +30,9 @@ args.quantizer = "ema_reset"
 args.mu = 0.99
 
 args.resume_pth = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32/net_last.pth'
-args.resume_trans = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-08-04-23-08-30_HML3D_36_token1stStage_cdim8192_32_lr0.0001_mask.5-1/net_last.pth'
+# args.resume_trans = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-08-04-23-08-30_HML3D_36_token1stStage_cdim8192_32_lr0.0001_mask.5-1/net_last.pth'
+args.resume_trans = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-10-10-15-09-53_HML3D_44_crsAtt1lyr_mask0.5-1/net_last.pth'
+args.num_local_layer = 1
 
 net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
                     args.nb_code,
@@ -52,6 +54,7 @@ trans_encoder = trans.Text2Motion_Transformer(vqvae=net,
                                 clip_dim=args.clip_dim, 
                                 block_size=args.block_size, 
                                 num_layers=args.num_layers, 
+                                num_local_layer=args.num_local_layer, 
                                 n_head=args.n_head_gpt, 
                                 drop_out_rate=args.drop_out_rate, 
                                 fc_rate=args.ff_rate)
@@ -74,7 +77,16 @@ class TextCLIP(torch.nn.Module):
         self.model = model
         
     def forward(self,text):
-        return self.model.encode_text(text)
+        with torch.no_grad():
+            word_emb = self.model.token_embedding(text).type(self.model.dtype)
+            word_emb = word_emb + self.model.positional_embedding.type(self.model.dtype)
+            word_emb = word_emb.permute(1, 0, 2)  # NLD -> LND
+            word_emb = self.model.transformer(word_emb)
+            word_emb = self.model.ln_final(word_emb).permute(1, 0, 2)
+            enctxt = word_emb[torch.arange(word_emb.shape[0]), text.argmax(dim=-1)] @ self.model.text_projection.float()
+            # https://github.com/openai/CLIP/blob/a1d071733d7111c9c014f024669f959182114e33/clip/model.py#L343
+            # enctxt = self.model.encode_text(text).float()
+        return enctxt.float(), word_emb.float()
 clip_model = TextCLIP(clip_model)
 
 from models.len_predictor_modules import MotionLenEstimatorBiGRU
@@ -101,17 +113,17 @@ def run_speed_test(batch, speed_info):
     
     speed_info.start()
     text = clip.tokenize(clip_text, truncate=True).cuda()
-    feat_clip_text = clip_model(text).float()
+    feat_clip_text, word_emb = clip_model(text)
 
     m_tokens_len = torch.ceil((m_length)/4)
     pred_len = m_length.cuda()
     pred_tok_len = m_tokens_len
-    if True:
+    if False:
         pred_probs = estimator(word_embeddings.cuda().float(), pos_one_hots.cuda().float(), sent_len).detach()
         pred_probs = softmax(pred_probs)
         pred_tok_len = pred_probs.argsort(dim=-1, descending=True)[..., 0]
         pred_len = pred_tok_len*4
-    index_motion = trans_encoder(feat_clip_text, type="sample", m_length=pred_len, rand_pos=False, CFG=-1)
+    index_motion = trans_encoder(feat_clip_text, word_emb, type="sample", m_length=pred_len, rand_pos=False, CFG=-1)
 
     pred_pose = net(index_motion[k:k+1, :int(pred_tok_len[k].item())], type='decode')
     speed_info.end(clip_text, m_length, pred_len[0])

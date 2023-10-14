@@ -15,4 +15,4 @@ if not os.path.isfile(speedtest_data_dir):
         speed_test_data.append([clip_text, m_length, word_embeddings, pos_one_hots, sent_len])
     np.save(speedtest_data_dir, speed_test_data)
 
-run_speed_test_all(run_speed_test, 'exit2m-15steps-predlen')
+run_speed_test_all(run_speed_test, 'exit2m-cross-attn1lyr_15Steps')
