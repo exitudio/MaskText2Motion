@@ -17,9 +17,9 @@
 . /home/epinyoan/miniconda3/etc/profile.d/conda.sh
 cd /home/epinyoan/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='HML3D_45_crsAtt1lyr_40breset' # TEMP
+name='HML3D_45_crsAtt1lyr_20breset' # TEMP
 dataset_name='t2m'
-vq_name='2023-10-07-10-29-34_23_VQVAE_40batchResetNRandom_8192_32'
+vq_name='2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32'
 debug='f'
 export CUDA_VISIBLE_DEVICES=4,5,6,7
 # export CUDA_LAUNCH_BLOCKING=1
