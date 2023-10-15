@@ -31,7 +31,7 @@ args.mu = 0.99
 
 args.resume_pth = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32/net_last.pth'
 # args.resume_trans = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-08-04-23-08-30_HML3D_36_token1stStage_cdim8192_32_lr0.0001_mask.5-1/net_last.pth'
-args.resume_trans = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-10-10-15-09-53_HML3D_44_crsAtt1lyr_mask0.5-1/net_last.pth'
+args.resume_trans = f'/{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-10-12-10-11-15_HML3D_45_crsAtt1lyr_40breset_WRONG_THIS_20BRESET/net_last.pth'
 args.num_local_layer = 1
 
 net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
@@ -83,7 +83,7 @@ class TextCLIP(torch.nn.Module):
             word_emb = word_emb.permute(1, 0, 2)  # NLD -> LND
             word_emb = self.model.transformer(word_emb)
             word_emb = self.model.ln_final(word_emb).permute(1, 0, 2)
-            enctxt = word_emb[torch.arange(word_emb.shape[0]), text.argmax(dim=-1)] @ self.model.text_projection.float()
+            enctxt = word_emb[torch.arange(word_emb.shape[0]), text.argmax(dim=-1)] @ self.model.text_projection
             # https://github.com/openai/CLIP/blob/a1d071733d7111c9c014f024669f959182114e33/clip/model.py#L343
             # enctxt = self.model.encode_text(text).float()
         return enctxt.float(), word_emb.float()
@@ -95,16 +95,16 @@ unit_length = 4
 dim_word = 300
 dim_pos_ohot = len(POS_enumerator)
 num_classes = 200 // unit_length
-estimator = MotionLenEstimatorBiGRU(dim_word, dim_pos_ohot, 512, num_classes)
+# estimator = MotionLenEstimatorBiGRU(dim_word, dim_pos_ohot, 512, num_classes)
 
-if args.dataname == 't2m':
-    cp = '/home/epinyoan/git/text-to-motion/checkpoints/t2m/length_est_bigru/model/latest.tar'
-elif args.dataname == 'kit':
-    cp = '/home/epinyoan/git/MaskText2Motion/T2M-BD/checkpoints/kit/length_est_bigru/model/latest.tar'
-checkpoints = torch.load(cp, map_location='cpu')
-estimator.load_state_dict(checkpoints['estimator'], strict=True)
-estimator.cuda()
-estimator.eval()
+# if args.dataname == 't2m':
+#     cp = '/home/epinyoan/git/text-to-motion/checkpoints/t2m/length_est_bigru/model/latest.tar'
+# elif args.dataname == 'kit':
+#     cp = '/home/epinyoan/git/MaskText2Motion/T2M-BD/checkpoints/kit/length_est_bigru/model/latest.tar'
+# checkpoints = torch.load(cp, map_location='cpu')
+# estimator.load_state_dict(checkpoints['estimator'], strict=True)
+# estimator.cuda()
+# estimator.eval()
 softmax = torch.nn.Softmax(-1)
 
 def run_speed_test(batch, speed_info):
