@@ -331,7 +331,7 @@ class Text2Motion_Transformer(nn.Module):
 
         return logits
 
-    def sample(self, clip_feature, word_emb, m_length=None, if_test=False, rand_pos=False, CFG=-1):
+    def sample(self, clip_feature, word_emb, m_length=None, if_test=False, rand_pos=False, CFG=-1, token_cond=None):
         max_steps = 15
         max_length = 49
         batch_size = clip_feature.shape[0]
@@ -343,10 +343,15 @@ class Text2Motion_Transformer(nn.Module):
         starting_temperature = 1.0
         scores = torch.ones(shape, dtype = torch.float32, device = clip_feature.device)
         
-        m_tokens_len = torch.ceil((m_length)/4)
+        m_tokens_len = torch.ceil((m_length)/4).long()
         src_token_mask = generate_src_mask(self.block_size-1, m_tokens_len+1)
         src_token_mask_noend = generate_src_mask(self.block_size-1, m_tokens_len)
-        ids = torch.full(shape, mask_id, dtype = torch.long, device = clip_feature.device)
+        if token_cond is not None:
+            ids = token_cond.clone()
+            ids[~src_token_mask_noend] = pad_id
+            num_token_cond = (ids==mask_id).sum(-1)
+        else:
+            ids = torch.full(shape, mask_id, dtype = torch.long, device = clip_feature.device)
         
         # [TODO] confirm that these 2 lines are not neccessary (repeated below and maybe don't need them at all)
         ids[~src_token_mask] = pad_id # [INFO] replace with pad id
@@ -382,6 +387,10 @@ class Text2Motion_Transformer(nn.Module):
             ### [OTHER]
             rand_mask_prob = cosine_schedule(timestep) # timestep #
             num_token_masked = (rand_mask_prob * m_tokens_len).long().clip(min=1)
+
+            if token_cond is not None:
+                num_token_masked = torch.min(num_token_masked, m_tokens_len-num_token_cond)
+                scores[token_cond!=mask_id] = 0
             # if len(m_tokens_len)==1 and prev_num_token_masked == num_token_masked:
             #     continue
             # prev_num_token_masked = num_token_masked
@@ -452,7 +461,7 @@ class Text2Motion_Transformer(nn.Module):
             return ids, temp
         return ids
     
-    def inpaint(self, first_tokens, last_tokens, word_emb=None, clip_feature=None, inpaint_len=2, rand_pos=False):
+    def inpaint(self, first_tokens, last_tokens, clip_feature=None, word_emb=None, inpaint_len=2, rand_pos=False):
         # support only one sample
         assert first_tokens.shape[0] == 1
         assert last_tokens.shape[0] == 1
