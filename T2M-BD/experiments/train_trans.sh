@@ -3,9 +3,9 @@
 # sbatch train_trans.sh
 
 # cd /home/epinyoan/git/MaskText2Motion/
-# screen -L -Logfile HML3D_45_crsAtt1lyr_40breset -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
+# screen -L -Logfile HML3D_45_crsAtt1lyr_20breset -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
 
-#SBATCH --job-name=HML3D_43_token1stStage_cdim8192_32_lr0.0001_mask0.1-1
+#SBATCH --job-name=HML3D_45_crsAtt1lyr_20breset
 #SBATCH --partition=GPU
 #SBATCH --gres=gpu:4
 #SBATCH --nodes=1
