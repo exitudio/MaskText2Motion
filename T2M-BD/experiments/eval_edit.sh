@@ -1,14 +1,14 @@
 #!/bin/sh
 # cd /home/epinyoan/git/MaskText2Motion
-# screen -L -Logfile EvalEDIT_HML3D_44_crsAtt1lyr_mask0.5-1_20bRest_2 /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/eval_edit.sh
+# screen -L -Logfile EvalEDIT_HML3D_44_crsAtt1lyr_mask0.5-1_20bRest_2_rpeat15 /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/eval_edit.sh
 
 . /home/epinyoan/miniconda3/etc/profile.d/conda.sh
 cd /home/epinyoan/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='EvalEDIT_HML3D_44_crsAtt1lyr_mask0.5-1_20bRest_2' # TEMP
+name='EvalEDIT_HML3D_44_crsAtt1lyr_mask0.5-1_20bRest_2_rpeat15' # TEMP
 dataset_name='t2m'
 debug='f'
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=1
 # export CUDA_LAUNCH_BLOCKING=1
 
 python3 eval_edit.py  \
