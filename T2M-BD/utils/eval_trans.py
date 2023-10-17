@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from scipy import linalg
 
-import visualization.plot_3d_global as plot_3d
+# import visualization.plot_3d_global as plot_3d
 from utils.motion_process import recover_from_ric
 from exit.utils import get_model, visualize_2motions, generate_src_mask
 from tqdm import tqdm
