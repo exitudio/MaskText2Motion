@@ -100,7 +100,7 @@ def run_all_eval(call_model, out_dir, exp_name):
     init_save_folder(args)
 
     ##### ---- Logger ---- #####
-    logger = utils_model.get_logger(out_dir)
+    logger = utils_model.get_logger(args.out_dir)
     logger.info(json.dumps(vars(args), indent=4, sort_keys=True))
 
     from utils.word_vectorizer import WordVectorizer
