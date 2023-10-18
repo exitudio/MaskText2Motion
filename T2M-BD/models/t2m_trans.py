@@ -332,7 +332,7 @@ class Text2Motion_Transformer(nn.Module):
         return logits
 
     def sample(self, clip_feature, word_emb, m_length=None, if_test=False, rand_pos=False, CFG=-1, token_cond=None):
-        max_steps = 15
+        max_steps = 10
         max_length = 49
         batch_size = clip_feature.shape[0]
         mask_id = self.num_vq + 2
