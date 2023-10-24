@@ -13,7 +13,7 @@ from models.evaluator_wrapper import EvaluatorModelWrapper
 from exit.utils import base_dir, init_save_folder
 
 def eval_inbetween(eval_wrapper, logger, val_loader, call_model, nb_iter):
-    num_repeat = 15
+    num_repeat = 1
     motion_annotation_list = []
     motion_pred_list = []
     motion_multimodality = []
@@ -119,7 +119,7 @@ def run_all_eval(call_model, out_dir, exp_name, copysource=True):
     top3 = []
     matching = []
     multi = []
-    repeat_time = 20
+    repeat_time = 10
 
     for i in tqdm(range(repeat_time)):
         _fid, diversity, R_precision, matching_score_pred, multimodality = eval_inbetween(eval_wrapper, logger, val_loader, call_model, nb_iter=i)
