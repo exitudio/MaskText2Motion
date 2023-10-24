@@ -73,7 +73,14 @@ class TextCLIP(torch.nn.Module):
         self.model = model
         
     def forward(self,text):
-        return self.model.encode_text(text)
+        with torch.no_grad():
+            word_emb = self.model.token_embedding(text).type(self.model.dtype)
+            word_emb = word_emb + self.model.positional_embedding.type(self.model.dtype)
+            word_emb = word_emb.permute(1, 0, 2)  # NLD -> LND
+            word_emb = self.model.transformer(word_emb)
+            word_emb = self.model.ln_final(word_emb).permute(1, 0, 2).float()
+            enctxt = self.model.encode_text(text).float()
+        return enctxt, word_emb
 clip_model = TextCLIP(clip_model)
 
 net = VQVAE_SEP(args, ## use args to define different parameters in different quantizers
@@ -109,6 +116,7 @@ trans_encoder = trans.Text2Motion_Transformer(vqvae=net,
                                 clip_dim=args.clip_dim, 
                                 block_size=args.block_size, 
                                 num_layers=args.num_layers, 
+                                num_local_layer=args.num_local_layer, 
                                 n_head=args.n_head_gpt, 
                                 drop_out_rate=args.drop_out_rate, 
                                 fc_rate=args.ff_rate)
@@ -184,7 +192,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     
     text = clip.tokenize(clip_text, truncate=True).cuda()
     
-    feat_clip_text = clip_model(text).float()
+    feat_clip_text, word_emb = clip_model(text)
 
     # [INFO] Swap input tokens
     if args.pkeep == -1:
@@ -227,7 +235,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     masked_input_indices = torch.where(mask_token, mask_id, input_indices)
 
     att_txt = None #proba != 1 # CFG: torch.rand((seq_mask.shape[0], 1)) > 0.1
-    cls_pred = trans_encoder(masked_input_indices, input_indices_lower, feat_clip_text, src_mask = seq_mask, att_txt=att_txt)[:, 1:] #, txt_mark=txt_mark
+    cls_pred = trans_encoder(masked_input_indices, input_indices_lower, feat_clip_text, src_mask = seq_mask, att_txt=att_txt, word_emb=word_emb)[:, 1:] #, txt_mark=txt_mark
 
     # [INFO] Compute xent loss as a batch
     weights = seq_mask_no_end / (seq_mask_no_end.sum(-1).unsqueeze(-1) * seq_mask_no_end.shape[0])

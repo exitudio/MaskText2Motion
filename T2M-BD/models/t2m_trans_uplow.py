@@ -281,12 +281,13 @@ class Text2Motion_Transformer(nn.Module):
                 clip_dim=512, 
                 block_size=16, 
                 num_layers=2, 
+                num_local_layer=0, 
                 n_head=8, 
                 drop_out_rate=0.1, 
                 fc_rate=4):
         super().__init__()
         self.n_head = n_head
-        self.trans_base = CrossCondTransBase(vqvae, num_vq, embed_dim, clip_dim, block_size, num_layers, n_head, drop_out_rate, fc_rate)
+        self.trans_base = CrossCondTransBase(vqvae, num_vq, embed_dim, clip_dim, block_size, num_layers, num_local_layer, n_head, drop_out_rate, fc_rate)
         self.trans_head = CrossCondTransHead(num_vq, embed_dim, block_size, num_layers, n_head, drop_out_rate, fc_rate)
         self.block_size = block_size
         self.num_vq = num_vq
@@ -319,7 +320,7 @@ class Text2Motion_Transformer(nn.Module):
             src_mask[:, :, :, 0] = txt_mark.view(B, 1, T).repeat(1, self.n_head, 1)
         return src_mask
 
-    def forward_function(self, idx_upper, idx_lower, clip_feature, src_mask=None, att_txt=None, txt_mark=None):
+    def forward_function(self, idx_upper, idx_lower, clip_feature, src_mask=None, att_txt=None, txt_mark=None, word_emb=None):
         # MLD:
         # if att_txt is None:
         #     att_txt = torch.tensor([[True]]*src_mask.shape[0]).to(src_mask.device)
@@ -329,12 +330,12 @@ class Text2Motion_Transformer(nn.Module):
         # T2M-BD
         if src_mask is not None:
             src_mask = self.get_attn_mask(src_mask, att_txt, txt_mark)
-        feat = self.trans_base(idx_upper, idx_lower, clip_feature, src_mask)
+        feat = self.trans_base(idx_upper, idx_lower, clip_feature, src_mask, word_emb)
         logits = self.trans_head(feat, src_mask)
 
         return logits
 
-    def sample(self, clip_feature, idx_lower, m_length=None, if_test=False, rand_pos=False, CFG=-1):
+    def sample(self, clip_feature, idx_lower, word_emb, m_length=None, if_test=False, rand_pos=False, CFG=-1):
         max_steps = 20
         max_length = 49
         batch_size = clip_feature.shape[0]
@@ -412,7 +413,7 @@ class Text2Motion_Transformer(nn.Module):
                 # logits = (1-CFG)*logits_textcond + CFG*logits_uncond
                 logits = (1+CFG)*logits_textcond - CFG*logits_uncond
             else:
-                logits = self.forward(ids, idx_lower, clip_feature, src_token_mask)[:,1:]
+                logits = self.forward(ids, idx_lower, clip_feature, src_token_mask, word_emb=word_emb)[:,1:]
             filtered_logits = logits #top_p(logits, .5) # #top_k(logits, topk_filter_thres)
             if rand_pos:
                 temperature = 1 #starting_temperature * (steps_until_x0 / timesteps) # temperature is annealed
@@ -593,6 +594,7 @@ class Block(nn.Module):
         x = x + self.mlp(self.ln2(x))
         return x
 
+from models.t2m_trans import Block_crossatt
 class CrossCondTransBase(nn.Module):
 
     def __init__(self, 
@@ -602,6 +604,7 @@ class CrossCondTransBase(nn.Module):
                 clip_dim=512, 
                 block_size=16, 
                 num_layers=2, 
+                num_local_layer = 1,
                 n_head=8, 
                 drop_out_rate=0.1, 
                 fc_rate=4):
@@ -615,9 +618,13 @@ class CrossCondTransBase(nn.Module):
         self.pos_embedding = nn.Embedding(block_size, embed_dim)
         self.drop = nn.Dropout(drop_out_rate)
         # transformer block
-        self.blocks = nn.Sequential(*[Block(embed_dim, block_size, n_head, drop_out_rate, fc_rate) for _ in range(num_layers)])
+        self.blocks = nn.Sequential(*[Block(embed_dim, block_size, n_head, drop_out_rate, fc_rate) for _ in range(num_layers-num_local_layer)])
         self.pos_embed = pos_encoding.PositionEmbedding(block_size, embed_dim, 0.0, False)
 
+        self.num_local_layer = num_local_layer
+        if num_local_layer > 0:
+            self.word_emb = nn.Linear(clip_dim, embed_dim)
+            self.cross_att = nn.Sequential(*[Block_crossatt(embed_dim, block_size, n_head, drop_out_rate, fc_rate) for _ in range(num_local_layer)])
         self.block_size = block_size
 
         self.apply(self._init_weights)
@@ -634,7 +641,7 @@ class CrossCondTransBase(nn.Module):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
     
-    def forward(self, idx_upper, idx_lower, clip_feature, src_mask):
+    def forward(self, idx_upper, idx_lower, clip_feature, src_mask, word_emb):
         if len(idx_upper) == 0:
             token_embeddings = self.cond_emb(clip_feature).unsqueeze(1)
         else:
@@ -652,6 +659,11 @@ class CrossCondTransBase(nn.Module):
             token_embeddings[..., int(code_dim/2):][learn_idx_lower] = self.learn_tok_emb(idx_lower[learn_idx_lower]-self.vqvae.vqvae.num_code)
             token_embeddings = self.to_emb(token_embeddings)
 
+            if self.num_local_layer > 0:
+                word_emb = self.word_emb(word_emb)
+                token_embeddings = self.pos_embed(token_embeddings)
+                for module in self.cross_att:
+                    token_embeddings = module(token_embeddings, word_emb)
             token_embeddings = torch.cat([self.cond_emb(clip_feature).unsqueeze(1), token_embeddings], dim=1)
             
         x = self.pos_embed(token_embeddings)
