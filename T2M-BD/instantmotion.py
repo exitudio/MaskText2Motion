@@ -139,7 +139,8 @@ class InstantMotion(torch.nn.Module):
         return pred_pose
     
     def long_range(self, text, lengths):
-        import datetime
+        # import datetime
+        # start_time = datetime.datetime.now()
         b = len(text)
         feat_clip_text = clip.tokenize(text, truncate=True).cuda()
         feat_clip_text, word_emb = clip_model(feat_clip_text)
@@ -155,7 +156,6 @@ class InstantMotion(torch.nn.Module):
         tokens = -1*torch.ones((b-1, 50), dtype=torch.long).cuda()
         transition_train_length = []
         
-        start_time = datetime.datetime.now()
         for i in range(b-1):
             left_end = half_token_length[i]
             right_start = left_end + 2
@@ -176,9 +176,9 @@ class InstantMotion(torch.nn.Module):
         all_tokens.append(index_motion[-1, :m_token_length[-1]])
         all_tokens = torch.cat(all_tokens).unsqueeze(0)
         pred_pose = self.vqvae(all_tokens, type='decode')
-        end_time = datetime.datetime.now()
-        diff_time = (end_time-start_time).total_seconds()
-        print('render time:', diff_time, 'seconds')
+        # end_time = datetime.datetime.now()
+        # diff_time = (end_time-start_time).total_seconds()
+        # print('render time:', diff_time, 'seconds')
         return pred_pose
 
         
