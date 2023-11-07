@@ -50,3 +50,5 @@ python3 GPT_eval_multi.py  \
     --vq-act relu \
     --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-10-12-10-11-15_HML3D_45_crsAtt1lyr_40breset_WRONG_THIS_20BRESET/net_last.pth
 sleep 500
+# --resume-pth output/vq/2023-08-26-23-12-12_kit_0_VQVAE_20batchResetNRandom_8192_32/net_last.pth \
+# --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/kit/2023-10-14-09-51-34_KIT_2_crsAtt1lyr_20brst_mask.5-1/net_last.pth
