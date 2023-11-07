@@ -43,5 +43,7 @@ python3 VQ_eval.py \
 --resume-pth /data/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-09-05-17-09-05_26_VQVAE_batch512/net_last.pth
 # --sep-uplow
 
+# --resume-pth /home/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-08-26-23-12-12_kit_0_VQVAE_20batchResetNRandom_8192_32/net_last.pth
+
 
 sleep 11500

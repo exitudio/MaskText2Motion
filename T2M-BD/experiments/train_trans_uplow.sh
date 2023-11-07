@@ -3,9 +3,9 @@
 # sbatch train_trans.sh
 
 # cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
-# screen -L -Logfile HML3D_44_upperEdit_transMaskLower_randLen_moveUpperDown_1crsAttn -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans_uplow.sh
+# screen -L -Logfile HML3D_44_upperEdit_transMaskLower_moveUpperDown_1crsAttn_noRandLen_dropTxt.1 -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans_uplow.sh
 
-#SBATCH --job-name=HML3D_44_upperEdit_transMaskLower_randLen_moveUpperDown_1crsAttn
+#SBATCH --job-name=HML3D_44_upperEdit_transMaskLower_moveUpperDown_1crsAttn_noRandLen_dropTxt.1
 #SBATCH --partition=GPU
 #SBATCH --gres=gpu:4
 #SBATCH --nodes=1
@@ -17,7 +17,7 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/T2M-BD
 conda activate T2M-GPT
-name='HML3D_44_upperEdit_transMaskLower_randLen_moveUpperDown_1crsAttn' # TEMP
+name='HML3D_44_upperEdit_transMaskLower_moveUpperDown_1crsAttn_noRandLen_dropTxt.1' # TEMP
 dataset_name='t2m'
 vq_name='2023-10-04-07-27-56_29_VQVAE_uplow_sepDec_moveUpperDown'
 debug='f'

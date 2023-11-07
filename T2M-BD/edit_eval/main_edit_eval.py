@@ -119,7 +119,7 @@ def run_all_eval(call_model, out_dir, exp_name, copysource=True):
     top3 = []
     matching = []
     multi = []
-    repeat_time = 10
+    repeat_time = 1
 
     for i in tqdm(range(repeat_time)):
         _fid, diversity, R_precision, matching_score_pred, multimodality = eval_inbetween(eval_wrapper, logger, val_loader, call_model, nb_iter=i)

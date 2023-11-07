@@ -78,6 +78,7 @@ trans_encoder.cuda()
 
 
 def call_T2MBD(clip_text, pose, m_length):
+    clip_text = [''] * len(clip_text)
     text = clip.tokenize(clip_text, truncate=True).cuda()
     feat_clip_text, word_emb = clip_model(text)
 
@@ -108,5 +109,18 @@ def call_T2MBD(clip_text, pose, m_length):
         pred_pose_eval[k:k+1, :int(m_length[k].item())] = pred_pose
     
     return pred_pose_eval
-
 run_all_eval(call_T2MBD, args.out_dir, args.exp_name)
+
+
+# from instantmotion import InstantMotion
+# from dataset import dataset_TM_eval
+# from utils.word_vectorizer import WordVectorizer
+# def call_InstantMotionUpper(clip_text, pose, m_length):
+#     return instant_motion_upper.upper_edit(pose, m_length, clip_text)
+
+# w_vectorizer = WordVectorizer('./glove', 'our_vab')
+# val_loader = dataset_TM_eval.DATALoader('t2m', True, 32, w_vectorizer)
+# instant_motion_upper = InstantMotion(is_upper_edit=True, 
+#                                      extra_args = {'mean':val_loader.dataset.mean, 
+#                                       'std':val_loader.dataset.std}).cuda()
+# run_all_eval(call_InstantMotionUpper, args.out_dir, args.exp_name)
