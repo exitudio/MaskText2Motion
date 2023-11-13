@@ -60,7 +60,7 @@ def visualize_2motions(motion1, std, mean, dataset_name, length, motion2=None, s
               first_total_standard=first_total_standard, 
               save_path=save_path) # 'init.html'
     
-def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, root_path=None, root_path2=None, save_path=None, axis_standard=axis_standard):
+def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, root_path=None, root_path2=None, save_path=None, axis_standard=axis_standard, axis_visible=True):
     # [animation] https://community.plotly.com/t/3d-scatter-animation/46368/6
     
     SHIFT_SCALE = 0
@@ -213,9 +213,9 @@ def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, root_path=N
     range_y, aspect_y = get_range(skeleton, 1)
     range_z, aspect_z = get_range(skeleton, 2)
 
-    fig.update_layout(scene=dict(xaxis=dict(range=range_x,),
-                                 yaxis=dict(range=range_y,),
-                                 zaxis=dict(range=range_z,)
+    fig.update_layout(scene=dict(xaxis=dict(range=range_x, visible=axis_visible),
+                                 yaxis=dict(range=range_y, visible=axis_visible),
+                                 zaxis=dict(range=range_z, visible=axis_visible)
                                  ),
                       scene_aspectmode='manual',
                       scene_aspectratio=dict(

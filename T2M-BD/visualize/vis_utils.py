@@ -9,7 +9,8 @@ import datetime
 from utils.motion_process import recover_from_ric
 
 class npy2obj:
-    def __init__(self, motions, folder_name, std=None, mean=None, device=0, cuda=True):
+    def __init__(self, motions, folder_name, std=None, mean=None, device=0, cuda=True, skip=1):
+        motions = motions[::skip]
         if std is not None and mean is not None:
             motions = motions * std + mean
             motions = recover_from_ric(torch.from_numpy(motions).float(), 22).numpy()
@@ -27,15 +28,21 @@ class npy2obj:
                                      jointstype='vertices',
                                      # jointstype='smpl',  # for joint locations
                                      vertstrans=True)
+        
+        #### Move all vertices up by the lowest points #####
+        # axis=1 (z-axis in Blender) is broken. So move z-axis of all vertices to the min vertices of the first frame. 
         self.root_loc = self.motions[:, -1, :3, :].reshape(1, 1, 3, -1)
-        self.vertices += self.root_loc
+        # self.vertices += self.root_loc
+        self.vertices[:, :, [0, 2]] += self.root_loc[:, :, [0, 2]]
+        self.vertices[:, :, 1] -= self.vertices[:, :, [1], 0].numpy().min(axis=1)[None]  # [1, 6890, 3, 196]) [b, vertices, axis, frames] (axisZ in blender = 1)
+        ####################################################
 
         date = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         results_dir = f'./output/obj/{date}_{folder_name}'
         os.makedirs(results_dir, exist_ok = False)
         print('Saving obj files to [{}]'.format(os.path.abspath(results_dir)))
         for frame_i in tqdm(range(self.num_frames)):
-            self.save_obj(os.path.join(results_dir, 'frame{:03d}.obj'.format(frame_i)), frame_i)
+            self.save_obj(os.path.join(results_dir, 'frame{:03d}.obj'.format(frame_i*skip)), frame_i)
         self.save_npy(f'{results_dir}/motions.npy')
 
     def get_vertices(self, sample_i, frame_i):

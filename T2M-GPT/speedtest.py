@@ -97,4 +97,26 @@ def run_speed_test(batch, speed_info):
     pred_pose = net.forward_decoder(index_motion)
     speed_info.end(clip_text, m_length, pred_pose.shape[1])
 
-run_speed_test_all(run_speed_test, 'T2M-GPT')
+
+
+def inference(clip_text, folder_path):
+    text = clip.tokenize(clip_text, truncate=True).cuda()
+    feat_clip_text = clip_model.encode_text(text).float()
+    try:
+        index_motion = trans_encoder.sample(feat_clip_text[0:1], True)
+    except:
+        index_motion = torch.ones(1,1).cuda().long()
+    pred_pose = net.forward_decoder(index_motion)
+
+    import numpy as np
+    import os
+    os.makedirs(folder_path, exist_ok=False)
+    np.save(folder_path+'/motions.npy', pred_pose.detach().cpu().numpy())
+
+    return pred_pose
+
+if len(sys.argv) > 1:
+    folder_path = sys.argv[2]
+    pred_pose = inference([sys.argv[1]], folder_path)
+else:
+    run_speed_test_all(run_speed_test, 'T2M-GPT')
