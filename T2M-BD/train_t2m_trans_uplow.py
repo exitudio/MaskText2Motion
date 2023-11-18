@@ -189,6 +189,11 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     target_upper = target[..., 0]
     target_lower = target[..., 1]
     batch_size, max_len = target.shape[:2]
+
+    # Random Drop Text
+    text_mask = np.random.random(len(clip_text)) > .1
+    clip_text = np.array(clip_text)
+    clip_text[~text_mask] = ''
     
     text = clip.tokenize(clip_text, truncate=True).cuda()
     

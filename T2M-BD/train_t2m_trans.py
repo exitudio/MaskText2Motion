@@ -173,6 +173,11 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     target = m_tokens    # (bs, 26)
     target = target.cuda()
     batch_size, max_len = target.shape[:2]
+
+    # Random Drop Text
+    # text_mask = np.random.random(len(clip_text)) > .05
+    # clip_text = np.array(clip_text)
+    # clip_text[~text_mask] = ''
     
     text = clip.tokenize(clip_text, truncate=True).cuda()
     
@@ -197,6 +202,7 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     # rand_time = uniform((batch_size,), device = target.device)
     # rand_mask_probs = cosine_schedule(rand_time)
     rand_mask_probs = torch.zeros(batch_size, device = m_tokens_len.device).float().uniform_(0.5, 1)
+    # rand_mask_probs = cosine_schedule(rand_mask_probs)
     num_token_masked = (m_tokens_len * rand_mask_probs).round().clamp(min = 1)
     seq_mask = generate_src_mask(max_len, m_tokens_len+1)
     batch_randperm = torch.rand((batch_size, max_len), device = target.device) - seq_mask_no_end.int()

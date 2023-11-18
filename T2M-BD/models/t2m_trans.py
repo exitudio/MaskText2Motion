@@ -388,7 +388,7 @@ class Text2Motion_Transformer(nn.Module):
             num_token_masked = (rand_mask_prob * m_tokens_len).long().clip(min=1)
 
             if token_cond is not None:
-                num_token_masked = torch.min(num_token_masked, m_tokens_len-num_token_cond)
+                num_token_masked = (rand_mask_prob * num_token_cond).long().clip(min=1)
                 scores[token_cond!=mask_id] = 0
             # if len(m_tokens_len)==1 and prev_num_token_masked == num_token_masked:
             #     continue
