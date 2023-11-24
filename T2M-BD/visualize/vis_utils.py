@@ -10,10 +10,10 @@ from utils.motion_process import recover_from_ric
 
 class npy2obj:
     def __init__(self, motions, folder_name, std=None, mean=None, device=0, cuda=True, skip=1):
-        motions = motions[::skip]
         if std is not None and mean is not None:
             motions = motions * std + mean
             motions = recover_from_ric(torch.from_numpy(motions).float(), 22).numpy()
+        motions = motions[::skip]
         self.motions = motions
         self.num_frames = self.motions.shape[0]
         self.rot2xyz = Rotation2xyz(device='cpu')

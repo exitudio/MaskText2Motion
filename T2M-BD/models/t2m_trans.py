@@ -331,7 +331,7 @@ class Text2Motion_Transformer(nn.Module):
 
         return logits
 
-    def sample(self, clip_feature, word_emb, m_length=None, if_test=False, rand_pos=False, CFG=-1, token_cond=None, max_steps = 10):
+    def sample(self, clip_feature, word_emb, m_length=None, if_test=False, rand_pos=True, CFG=-1, token_cond=None, max_steps = 10):
         max_length = 49
         batch_size = clip_feature.shape[0]
         mask_id = self.num_vq + 2
@@ -382,8 +382,10 @@ class Text2Motion_Transformer(nn.Module):
             if len(m_tokens_len)==1 and step > 0 and torch.clip(step-1/(sample_max_steps), max=1).cpu().item() == timestep:
                 break
             ### [LINEAR] 
-            # num_token_masked = (max_steps-step) * torch.ones_like(m_tokens_len).to(m_tokens_len.device).long()
-            ### [OTHER]
+            # rand_mask_prob = 1-timestep
+            ### [Square root] 
+            # rand_mask_prob = 1-torch.sqrt(timestep)
+            ### [Cosine]
             rand_mask_prob = cosine_schedule(timestep) # timestep #
             num_token_masked = (rand_mask_prob * m_tokens_len).long().clip(min=1)
 
@@ -456,6 +458,7 @@ class Text2Motion_Transformer(nn.Module):
             scores = 1 - probs_without_temperature.gather(-1, pred_ids[..., None])
             scores = rearrange(scores, '... 1 -> ...')
             scores = scores.masked_fill(~is_mask, 0)
+            temp.append(probs_without_temperature)
         if if_test:
             return ids, temp
         return ids
