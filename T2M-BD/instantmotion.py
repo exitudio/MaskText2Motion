@@ -84,7 +84,10 @@ class InstantMotion(torch.nn.Module):
         args = Temp(extra_args)
         if not is_upper_edit:
             args.resume_pth = '/home/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32/net_last.pth'
-            args.resume_trans = '/home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-10-12-10-11-15_HML3D_45_crsAtt1lyr_40breset_WRONG_THIS_20BRESET/net_last.pth'
+            # w/ txt
+            # args.resume_trans = '/home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-10-12-10-11-15_HML3D_45_crsAtt1lyr_40breset_WRONG_THIS_20BRESET/net_last.pth'
+            # w/o txt
+            args.resume_trans = '/home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-10-15-09-13-42_HML3D_46_crsAtt1lyr_20breset_.1DrpTxt/net_last.pth'
             args.num_local_layer = 1
         else:
             args.resume_pth = '/home/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-10-04-07-27-56_29_VQVAE_uplow_sepDec_moveUpperDown/net_last.pth'
@@ -146,7 +149,7 @@ class InstantMotion(torch.nn.Module):
         b = len(text)
         feat_clip_text = clip.tokenize(text, truncate=True).cuda()
         feat_clip_text, word_emb = clip_model(feat_clip_text)
-        index_motion = self.maskdecoder(feat_clip_text, word_emb, type="sample", m_length=lengths, rand_pos=rand_pos)
+        index_motion = self.maskdecoder(feat_clip_text, word_emb, type="sample", m_length=lengths, rand_pos=rand_pos, if_test=False)
 
         m_token_length = torch.ceil((lengths)/4).int()
         pred_pose_all = torch.zeros((b, 196, 263)).cuda()
@@ -155,7 +158,40 @@ class InstantMotion(torch.nn.Module):
             pred_pose_all[k:k+1, :int(lengths[k].item())] = pred_pose
         return pred_pose_all
     
+    def anytime_paint(self, base_pose, m_length, when_paint, inpaint_text):
+        bs, seq = base_pose.shape[:2]
+        tokens = -1*torch.ones((bs, int(seq/4)), dtype=torch.long).cuda()
+        m_token_length = torch.ceil((m_length)/4).int()
+
+        for i in range(bs):
+            index_motion = self.vqvae(base_pose[i:i+1, :m_length[i]].cuda(), type='encode')
+            token_len = index_motion.shape[1]
+            condition = ~when_paint[i, :token_len] # for the case base_pose is shorter than 196
+            tokens[i, :token_len][condition] = index_motion[0, condition]
+        tokens = torch.cat([tokens, -1 * torch.ones(bs, 1, dtype=int).cuda()], dim=1)
+            
+        text = clip.tokenize(inpaint_text, truncate=True).cuda()
+        feat_clip_text, word_emb_clip = clip_model(text)
+
+        mask_id = self.maskdecoder.num_vq + 2
+        tokens[tokens==-1] = mask_id
+        inpaint_index = self.maskdecoder(feat_clip_text, word_emb_clip, type="sample", m_length=m_length.cuda(), token_cond=tokens)
+
+        pred_pose_eval = torch.zeros((bs, seq, base_pose.shape[-1])).cuda()
+        for k in range(bs):
+            pred_pose = self.vqvae(inpaint_index[k:k+1, :m_token_length[k]], type='decode')
+            pred_pose_eval[k:k+1, :int(m_length[k].item())] = pred_pose
+        return pred_pose_eval
+    
     def inbetween(self, base_pose, m_length, start_f, end_f, inbetween_text):
+        bs, seq = base_pose.shape[:2]
+        token_len = torch.ceil((m_length)/4).int()
+        when_paint = torch.zeros((base_pose.shape[0], token_len), dtype=bool)
+        for i in range(bs):
+            when_paint[i, int(start_f[i]/4):int(end_f[i]/4)] = True
+        return self.anytime_paint(base_pose, m_length, when_paint, inbetween_text)
+    
+    def inbetween_eval(self, base_pose, m_length, start_f, end_f, inbetween_text):
         bs, seq = base_pose.shape[:2]
         tokens = -1*torch.ones((bs, 50), dtype=torch.long).cuda()
         m_token_length = torch.ceil((m_length)/4).int()

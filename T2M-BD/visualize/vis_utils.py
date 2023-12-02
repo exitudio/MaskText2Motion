@@ -33,7 +33,7 @@ class npy2obj:
         # axis=1 (z-axis in Blender) is broken. So move z-axis of all vertices to the min vertices of the first frame. 
         self.root_loc = self.motions[:, -1, :3, :].reshape(1, 1, 3, -1)
         # self.vertices += self.root_loc
-        self.vertices[:, :, [0, 2]] += self.root_loc[:, :, [0, 2]]
+        # self.vertices[:, :, [0, 2]] += self.root_loc[:, :, [0, 2]]
         self.vertices[:, :, 1] -= self.vertices[:, :, [1], 0].numpy().min(axis=1)[None]  # [1, 6890, 3, 196]) [b, vertices, axis, frames] (axisZ in blender = 1)
         ####################################################
 

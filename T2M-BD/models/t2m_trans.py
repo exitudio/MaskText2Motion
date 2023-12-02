@@ -440,7 +440,7 @@ class Text2Motion_Transformer(nn.Module):
             # pred_ids = filtered_logits.argmax(dim = -1)
             pred_ids = gumbel_sample(filtered_logits, temperature = temperature, dim = -1)
             is_mask = ids == mask_id
-            temp.append(is_mask[:1])
+            # temp.append(is_mask[:1])
             
             # mid = is_mask[0][:m_tokens_len[0].int()]
             # mid = mid.nonzero(as_tuple=True)[0]
@@ -458,7 +458,7 @@ class Text2Motion_Transformer(nn.Module):
             scores = 1 - probs_without_temperature.gather(-1, pred_ids[..., None])
             scores = rearrange(scores, '... 1 -> ...')
             scores = scores.masked_fill(~is_mask, 0)
-            temp.append(probs_without_temperature)
+            # temp.append(probs_without_temperature)
         if if_test:
             return ids, temp
         return ids
