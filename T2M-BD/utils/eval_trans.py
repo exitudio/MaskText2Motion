@@ -166,7 +166,7 @@ def evaluation_vqvae(out_dir, val_loader, net, logger, writer, nb_iter, best_fid
 
 
 @torch.no_grad()        
-def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, dataname='t2m', draw = True, save = True, savegif=False, num_repeat=1, rand_pos=False, CFG=-1) : 
+def evaluation_transformer(out_dir, val_loader, net, trans, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model, eval_wrapper, dataname='t2m', draw = True, save = False, savegif=False, num_repeat=1, rand_pos=False, CFG=-1) : 
     if num_repeat < 0:
         is_avg_all = True
         num_repeat = -num_repeat
