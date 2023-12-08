@@ -3,7 +3,7 @@
 # sbatch train_trans.sh
 
 # cd /home/epinyoan/git/MaskText2Motion/
-# screen -L -Logfile HML3D_45_crsAtt1lyr_20breset -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans.sh
+# screen -L -Logfile HML3D_45_crsAtt1lyr_20breset -S temp ~/git/MaskText2Motion/MMM2/experiments/train_trans.sh
 
 #SBATCH --job-name=HML3D_45_crsAtt1lyr_20breset
 #SBATCH --partition=GPU
@@ -15,7 +15,7 @@
 #SBATCH --output=%x.%j.out
 
 . /home/epinyoan/miniconda3/etc/profile.d/conda.sh
-cd /home/epinyoan/git/MaskText2Motion/T2M-BD
+cd /home/epinyoan/git/MaskText2Motion/MMM2
 conda activate T2M-GPT
 name='HML3D_45_crsAtt1lyr_20breset' # TEMP
 dataset_name='t2m'
@@ -23,7 +23,7 @@ vq_name='2023-07-19-04-17-17_12_VQVAE_20batchResetNRandom_8192_32'
 debug='f'
 export CUDA_VISIBLE_DEVICES=4,5,6,7
 # export CUDA_LAUNCH_BLOCKING=1
-# --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/2023-04-08-08-16-27_2_train_withEval/net_last.pth
+# --resume-trans /home/epinyoan/git/MaskText2Motion/MMM2/output/2023-04-08-08-16-27_2_train_withEval/net_last.pth
 MULTI_BATCH=4
 
 python3 train_t2m_trans.py  \

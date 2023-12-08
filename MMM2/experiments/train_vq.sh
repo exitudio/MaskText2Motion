@@ -1,9 +1,9 @@
 #!/bin/sh
-# cd /users/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
+# cd /users/epinyoan/git/MaskText2Motion/MMM2/experiments/
 # sbatch train_vq.sh
 
-# cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments
-# screen -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_vq.sh
+# cd /home/epinyoan/git/MaskText2Motion/MMM2/experiments
+# screen -S temp ~/git/MaskText2Motion/MMM2/experiments/train_vq.sh
 
 #SBATCH --job-name=1GPU
 #SBATCH --partition=GPU
@@ -15,19 +15,19 @@
 #SBATCH --output=%x.%j.out
 
 . ~/miniconda3/etc/profile.d/conda.sh
-cd ~/git/MaskText2Motion/T2M-BD
+cd ~/git/MaskText2Motion/MMM2
 conda activate T2M-GPT
-name='29_VQVAE_uplow_sepDec_moveUpperDown'
+name='0_VQVAE_LFQ'
 dataset_name='t2m'
 debug='f'
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=2
 python3 train_vq.py \
     --batch-size 256 \
     --lr 2e-4 \
     --total-iter 300000  \
     --lr-scheduler 200000 \
     --nb-code 8192 \
-    --code-dim 32 \
+    --code-dim 16 \
     --width 512 \
     --down-t 2 \
     --depth 3 \
@@ -38,7 +38,7 @@ python3 train_vq.py \
     --quantizer ema_reset \
     --loss-vel 0.5 \
     --recons-loss l1_smooth \
-    --exp-name ${name} \
-    --sep-uplow
+    --exp-name ${name} 
+    # --sep-uplow
 
 sleep 500

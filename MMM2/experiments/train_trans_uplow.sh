@@ -1,9 +1,9 @@
 #!/bin/sh
-# cd /users/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
+# cd /users/epinyoan/git/MaskText2Motion/MMM2/experiments/
 # sbatch train_trans.sh
 
-# cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
-# screen -L -Logfile HML3D_44_upperEdit_transMaskLower_moveUpperDown_1crsAttn_noRandLen_dropTxt.1 -S temp ~/git/MaskText2Motion/T2M-BD/experiments/train_trans_uplow.sh
+# cd /home/epinyoan/git/MaskText2Motion/MMM2/experiments/
+# screen -L -Logfile HML3D_44_upperEdit_transMaskLower_moveUpperDown_1crsAttn_noRandLen_dropTxt.1 -S temp ~/git/MaskText2Motion/MMM2/experiments/train_trans_uplow.sh
 
 #SBATCH --job-name=HML3D_44_upperEdit_transMaskLower_moveUpperDown_1crsAttn_noRandLen_dropTxt.1
 #SBATCH --partition=GPU
@@ -15,7 +15,7 @@
 #SBATCH --output=%x.%j.out
 
 . ~/miniconda3/etc/profile.d/conda.sh
-cd ~/git/MaskText2Motion/T2M-BD
+cd ~/git/MaskText2Motion/MMM2
 conda activate T2M-GPT
 name='HML3D_44_upperEdit_transMaskLower_moveUpperDown_1crsAttn_noRandLen_dropTxt.1' # TEMP
 dataset_name='t2m'
@@ -23,7 +23,7 @@ vq_name='2023-10-04-07-27-56_29_VQVAE_uplow_sepDec_moveUpperDown'
 debug='f'
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export CUDA_LAUNCH_BLOCKING=1
-# --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/2023-04-08-08-16-27_2_train_withEval/net_last.pth
+# --resume-trans /home/epinyoan/git/MaskText2Motion/MMM2/output/2023-04-08-08-16-27_2_train_withEval/net_last.pth
 MULTI_BATCH=4
 
 python3 train_t2m_trans_uplow.py  \

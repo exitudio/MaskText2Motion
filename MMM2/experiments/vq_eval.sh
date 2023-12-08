@@ -1,8 +1,8 @@
 #!/bin/sh
-# cd /users/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
+# cd /users/epinyoan/git/MaskText2Motion/MMM2/experiments/
 # sbatch eval_gpt.sh
-# cd /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/
-# screen ~/git/MaskText2Motion/T2M-BD/experiments/vq_eval.sh
+# cd /home/epinyoan/git/MaskText2Motion/MMM2/experiments/
+# screen ~/git/MaskText2Motion/MMM2/experiments/vq_eval.sh
 
 #SBATCH --job-name=eval
 #SBATCH --partition=GPU
@@ -14,7 +14,7 @@
 #SBATCH --output=%x.%j.out
 
 . ~/miniconda3/etc/profile.d/conda.sh
-cd ~/git/MaskText2Motion/T2M-BD
+cd ~/git/MaskText2Motion/MMM2
 conda activate T2M-GPT
 name='HML3D_VQVAE_eval_26_VQVAE_batch512' # TEMP
 dataset_name='t2m'
@@ -40,10 +40,10 @@ python3 VQ_eval.py \
 --recons-loss l1_smooth \
 --exp-name ${name} \
 --dataname ${dataset_name} \
---resume-pth /data/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-09-05-17-09-05_26_VQVAE_batch512/net_last.pth
+--resume-pth /data/epinyoan/git/MaskText2Motion/MMM2/output/vq/2023-09-05-17-09-05_26_VQVAE_batch512/net_last.pth
 # --sep-uplow
 
-# --resume-pth /home/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/2023-08-26-23-12-12_kit_0_VQVAE_20batchResetNRandom_8192_32/net_last.pth
+# --resume-pth /home/epinyoan/git/MaskText2Motion/MMM2/output/vq/2023-08-26-23-12-12_kit_0_VQVAE_20batchResetNRandom_8192_32/net_last.pth
 
 
 sleep 11500

@@ -1,9 +1,9 @@
 #!/bin/sh
 # cd /home/epinyoan/git/MaskText2Motion
-# screen -L -Logfile EvalEDIT_HML3D_44_crsAtt1lyr_mask0.5-1_20bRest_2_rpeat1_notxt /home/epinyoan/git/MaskText2Motion/T2M-BD/experiments/eval_edit.sh
+# screen -L -Logfile EvalEDIT_HML3D_44_crsAtt1lyr_mask0.5-1_20bRest_2_rpeat1_notxt /home/epinyoan/git/MaskText2Motion/MMM2/experiments/eval_edit.sh
 
 . /home/epinyoan/miniconda3/etc/profile.d/conda.sh
-cd /home/epinyoan/git/MaskText2Motion/T2M-BD
+cd /home/epinyoan/git/MaskText2Motion/MMM2
 conda activate T2M-GPT
 name='EvalEDIT_HML3D_44_crsAtt1lyr_mask0.5-1_20bRest_2_rpeat1_notxt_TranDrpTxt' # TEMP
 dataset_name='t2m'
@@ -37,5 +37,5 @@ python3 eval_edit.py  \
     --pkeep 0.5 \
     --dilation-growth-rate 3 \
     --vq-act relu \
-    --resume-trans /home/epinyoan/git/MaskText2Motion/T2M-BD/output/t2m/2023-10-15-09-13-42_HML3D_46_crsAtt1lyr_20breset_.1DrpTxt/net_last.pth
+    --resume-trans /home/epinyoan/git/MaskText2Motion/MMM2/output/t2m/2023-10-15-09-13-42_HML3D_46_crsAtt1lyr_20breset_.1DrpTxt/net_last.pth
 sleep 500
