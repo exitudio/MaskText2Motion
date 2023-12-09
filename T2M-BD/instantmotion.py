@@ -224,14 +224,15 @@ class InstantMotion(torch.nn.Module):
             pred_pose_eval[k:k+1, :int(m_length[k].item())] = pred_pose
         return pred_pose_eval
     
-    def long_range(self, text, lengths, num_transition_token=2, output='concat'):
+    def long_range(self, text, lengths, num_transition_token=2, output='concat', index_motion=None):
         # assert num_transition_token%2==0
         # import datetime
         # start_time = datetime.datetime.now()
         b = len(text)
         feat_clip_text = clip.tokenize(text, truncate=True).cuda()
         feat_clip_text, word_emb = clip_model(feat_clip_text)
-        index_motion = self.maskdecoder(feat_clip_text, word_emb, type="sample", m_length=lengths, rand_pos=False)
+        if index_motion is None:
+            index_motion = self.maskdecoder(feat_clip_text, word_emb, type="sample", m_length=lengths, rand_pos=False)
 
         m_token_length = torch.ceil((lengths)/4).int()
         if output == 'eval':
