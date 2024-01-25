@@ -438,7 +438,17 @@ class Text2Motion_Transformer(nn.Module):
 
             # [INFO] if temperature==0: is equal to argmax (filtered_logits.argmax(dim = -1))
             # pred_ids = filtered_logits.argmax(dim = -1)
-            pred_ids = gumbel_sample(filtered_logits, temperature = temperature, dim = -1)
+                
+            probs = F.sigmoid(logits)
+            is_one = (probs>.5)
+            pred_ids = is_one
+            probs[~is_one] = 1 - probs[~is_one]
+            pred_ids = self.trans_base.vqvae.vqvae.quantizer.codes_to_indices(pred_ids.unsqueeze(2)).squeeze(-1)
+            print('bf', probs.shape)
+            probs = torch.prod(probs, axis=-1)
+            print('af', probs.shape)
+            print(probs)
+            import pdb; pdb.set_trace()
             is_mask = ids == mask_id
             # temp.append(is_mask[:1])
             
@@ -454,9 +464,8 @@ class Text2Motion_Transformer(nn.Module):
             
             # if timestep == 1.:
             #     print(probs_without_temperature.shape)
-            probs_without_temperature = logits.softmax(dim = -1)
-            scores = 1 - probs_without_temperature.gather(-1, pred_ids[..., None])
-            scores = rearrange(scores, '... 1 -> ...')
+            scores = 1 - probs
+            # scores = rearrange(scores, '... 1 -> ...')
             scores = scores.masked_fill(~is_mask, 0)
             # temp.append(probs_without_temperature)
         if if_test:
@@ -684,7 +693,8 @@ class CrossCondTransBase(nn.Module):
         super().__init__()
         self.vqvae = vqvae
         # self.tok_emb = nn.Embedding(num_vq + 3, embed_dim).requires_grad_(False) 
-        self.learn_tok_emb = nn.Embedding(3, self.vqvae.vqvae.code_dim)# [INFO] 3 = [end_id, blank_id, mask_id]
+        self.embed_dim = embed_dim
+        self.learn_tok_emb = nn.Embedding(3, embed_dim)# [INFO] 3 = [end_id, blank_id, mask_id]
         self.to_emb = nn.Linear(self.vqvae.vqvae.code_dim, embed_dim)
 
         self.cond_emb = nn.Linear(clip_dim, embed_dim)
@@ -724,10 +734,14 @@ class CrossCondTransBase(nn.Module):
             not_learn_idx = idx<self.vqvae.vqvae.num_code
             learn_idx = ~not_learn_idx
             
-            token_embeddings = torch.empty((*idx.shape, self.vqvae.vqvae.code_dim), device=idx.device)
-            token_embeddings[not_learn_idx] = self.vqvae.vqvae.quantizer.dequantize(idx[not_learn_idx]).requires_grad_(False) 
+            # token_embeddings = torch.empty((*idx.shape, self.vqvae.vqvae.code_dim), device=idx.device)
+            # token_embeddings[not_learn_idx] = self.vqvae.vqvae.quantizer.dequantize(idx[not_learn_idx]).requires_grad_(False) 
+            # token_embeddings[learn_idx] = self.learn_tok_emb(idx[learn_idx]-self.vqvae.vqvae.num_code)
+            # token_embeddings = self.to_emb(token_embeddings)
+            token_embeddings = torch.empty((*idx.shape, self.embed_dim), device=idx.device)
+            vq_emb = self.vqvae.vqvae.quantizer.dequantize(idx[not_learn_idx]).requires_grad_(False) 
+            token_embeddings[not_learn_idx] = self.to_emb(vq_emb)
             token_embeddings[learn_idx] = self.learn_tok_emb(idx[learn_idx]-self.vqvae.vqvae.num_code)
-            token_embeddings = self.to_emb(token_embeddings)
 
             if self.num_local_layer > 0:
                 word_emb = self.word_emb(word_emb)
@@ -757,7 +771,10 @@ class CrossCondTransHead(nn.Module):
 
         self.blocks = nn.Sequential(*[Block(embed_dim, block_size, n_head, drop_out_rate, fc_rate) for _ in range(num_layers)])
         self.ln_f = nn.LayerNorm(embed_dim)
-        self.head = nn.Linear(embed_dim, num_vq, bias=False)
+
+        import math
+        code_dim = int(math.log2(num_vq))
+        self.head = nn.Linear(embed_dim, code_dim, bias=False)
         self.block_size = block_size
 
         self.apply(self._init_weights)

@@ -111,7 +111,7 @@ net.cuda()
 
 ##### ---- Optimizer & Scheduler ---- #####
 optimizer = optim.AdamW(net.parameters(), lr=args.lr, betas=(0.9, 0.99), weight_decay=args.weight_decay)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_scheduler, gamma=args.gamma)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[150000, 250000], gamma=.1)
   
 
 Loss = losses.ReConsLoss(args.recons_loss, args.nb_joints)

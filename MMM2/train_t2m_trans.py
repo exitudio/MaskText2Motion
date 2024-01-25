@@ -26,6 +26,7 @@ from exit.utils import get_model, visualize_2motions, generate_src_mask, init_sa
 from einops import rearrange, repeat
 import torch.nn.functional as F
 from exit.utils import base_dir
+import math
 
 ##### ---- Exp dirs ---- #####
 args = option_trans.get_args_parser()
@@ -35,7 +36,7 @@ torch.manual_seed(args.seed)
 init_save_folder(args)
 
 # [TODO] make the 'output/' folder as arg
-args.vq_dir = f'{base_dir}/epinyoan/git/MaskText2Motion/T2M-BD/output/vq/{args.vq_name}' #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
+args.vq_dir = f'{base_dir}/epinyoan/git/MaskText2Motion/MMM2/output/vq/{args.vq_name}' #os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
 codebook_dir = f'{args.vq_dir}/codebook/'
 args.resume_pth = f'{args.vq_dir}/net_last.pth'
 os.makedirs(args.vq_dir, exist_ok = True)
@@ -157,10 +158,9 @@ best_matching=100
 # pred_pose_eval, pose, m_length, clip_text, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, best_multi, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, clip_model=clip_model, eval_wrapper=eval_wrapper)
 
 def get_acc(cls_pred, target, mask):
-    cls_pred = torch.masked_select(cls_pred, mask.unsqueeze(-1)).view(-1, cls_pred.shape[-1])
-    target_all = torch.masked_select(target, mask)
-    probs = torch.softmax(cls_pred, dim=-1)
-    _, cls_pred_index = torch.max(probs, dim=-1)
+    cls_pred_index = net.vqvae.quantizer.codes_to_indices(cls_pred.unsqueeze(2)).squeeze(-1)
+    cls_pred_index = cls_pred_index[mask]
+    target_all = target[mask]
     right_num = (cls_pred_index == target_all).sum()
     return right_num*100/mask.sum()
 
@@ -217,11 +217,10 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
 
     # [INFO] Compute xent loss as a batch
     weights = seq_mask_no_end / (seq_mask_no_end.sum(-1).unsqueeze(-1) * seq_mask_no_end.shape[0])
-    cls_pred_seq_masked = cls_pred[seq_mask_no_end, :].view(-1, cls_pred.shape[-1])
-    target_seq_masked = target[seq_mask_no_end]
-    weight_seq_masked = weights[seq_mask_no_end]
-    loss_cls = F.cross_entropy(cls_pred_seq_masked, target_seq_masked, reduction = 'none')
-    loss_cls = (loss_cls * weight_seq_masked).sum()
+    weights = repeat(weights, 'b f -> b f c', c=args.code_dim)/args.code_dim
+    target_code = net.vqvae.quantizer.indices_to_codes(target)
+    loss_cls = F.binary_cross_entropy_with_logits(cls_pred, (target_code > 0).float(), weight=weights, reduction='none')
+    loss_cls = loss_cls.sum()
 
     ## global loss
     optimizer.zero_grad()
@@ -230,13 +229,10 @@ for nb_iter in tqdm(range(1, args.total_iter + 1), position=0, leave=True):
     scheduler.step()
 
     if nb_iter % args.print_iter ==  0 :
-        probs_seq_masked = torch.softmax(cls_pred_seq_masked, dim=-1)
-        _, cls_pred_seq_masked_index = torch.max(probs_seq_masked, dim=-1)
-        target_seq_masked = torch.masked_select(target, seq_mask_no_end)
-        right_seq_masked = (cls_pred_seq_masked_index == target_seq_masked).sum()
-
         writer.add_scalar('./Loss/all', loss_cls, nb_iter)
-        writer.add_scalar('./ACC/every_token', right_seq_masked*100/seq_mask_no_end.sum(), nb_iter)
+
+        acc_every_token = get_acc(cls_pred, target, seq_mask_no_end)
+        writer.add_scalar('./ACC/every_token', acc_every_token, nb_iter)
         
         # [INFO] log mask/nomask separately
         no_mask_token = ~mask_token * seq_mask_no_end

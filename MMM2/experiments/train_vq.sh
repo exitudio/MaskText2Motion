@@ -17,17 +17,17 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MaskText2Motion/MMM2
 conda activate T2M-GPT
-name='0_VQVAE_LFQ'
+name='0_VQVAE_LFQ_cmmit1_entp.5_div1_cdim17_milestones150k250k_g.1_b256_RERUN'
 dataset_name='t2m'
 debug='f'
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=5
 python3 train_vq.py \
     --batch-size 256 \
     --lr 2e-4 \
     --total-iter 300000  \
     --lr-scheduler 200000 \
     --nb-code 8192 \
-    --code-dim 16 \
+    --code-dim 17 \
     --width 512 \
     --down-t 2 \
     --depth 3 \

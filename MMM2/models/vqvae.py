@@ -3,6 +3,10 @@ from models.encdec import Encoder, Decoder
 from models.quantize_cnn import QuantizeEMAReset, Quantizer, QuantizeEMA, QuantizeReset
 from models.t2m_trans import Decoder_Transformer, Encoder_Transformer
 from exit.utils import generate_src_mask
+from models.lookup_free_quantization import LFQ
+from models.residual_lfq import ResidualLFQ
+
+import torch
 
 class VQVAE_251(nn.Module):
     def __init__(self,
@@ -49,14 +53,24 @@ class VQVAE_251(nn.Module):
         #     num_layers=6,
         #     n_head=8
         # )
-        if args.quantizer == "ema_reset":
-            self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
-        elif args.quantizer == "orig":
-            self.quantizer = Quantizer(nb_code, code_dim, 1.0)
-        elif args.quantizer == "ema":
-            self.quantizer = QuantizeEMA(nb_code, code_dim, args)
-        elif args.quantizer == "reset":
-            self.quantizer = QuantizeReset(nb_code, code_dim, args)
+        # if args.quantizer == "ema_reset":
+        #     self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
+        # elif args.quantizer == "orig":
+        #     self.quantizer = Quantizer(nb_code, code_dim, 1.0)
+        # elif args.quantizer == "ema":
+        #     self.quantizer = QuantizeEMA(nb_code, code_dim, args)
+        # elif args.quantizer == "reset":
+        #     self.quantizer = QuantizeReset(nb_code, code_dim, args)
+
+
+        self.quantizer = LFQ(
+        # self.quantizer = ResidualLFQ(
+            # codebook_size = 65536,      # codebook size, must be a power of 2
+            dim = args.code_dim,                   # this is the input feature dimension, defaults to log2(codebook_size) if not defined
+            entropy_loss_weight = 0.5,  # how much weight to place on entropy loss
+            diversity_gamma = 1.,        # within entropy loss, how much weight to give to diversity of codes, taken from https://arxiv.org/abs/1911.05894
+            commitment_loss_weight = 1
+        )
 
 
     def preprocess(self, x):
@@ -76,7 +90,6 @@ class VQVAE_251(nn.Module):
         x_in = self.preprocess(x)
         x_encoder = self.encoder(x_in)
         x_encoder = self.postprocess(x_encoder)
-        x_encoder = x_encoder.contiguous().view(-1, x_encoder.shape[-1])  # (NT, C)
         code_idx = self.quantizer.quantize(x_encoder)
         code_idx = code_idx.view(N, -1)
         return code_idx
@@ -97,10 +110,11 @@ class VQVAE_251(nn.Module):
         # x_encoder = x_encoder.permute(0,2,1)
         # x_encoder = x_encoder.reshape(x_in.shape[0], -1, int(x_in.shape[2]/4))
 
-        x_encoder = self.encoder(x_in)
-        
+        x_encoder = self.encoder(x_in) # B, d, T
+        x_encoder = x_encoder.permute(0,2,1)
         ## quantization
         x_quantized, loss, perplexity  = self.quantizer(x_encoder)
+        x_quantized = x_quantized.permute(0,2,1)
 
         ## decoder
         x_decoder = self.decoder(x_quantized)

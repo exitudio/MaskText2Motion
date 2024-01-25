@@ -156,12 +156,22 @@ class LFQ(Module):
             codes = rearrange(codes, 'b ... d -> b d ...')
 
         return codes
+    
+    def codes_to_indices(self, x):
+        return reduce((x > 0).int() * self.mask.int(), 'b n c d -> b n c', 'sum')
+
+    def quantize(self, x):
+        return self(x, return_indices=True)
+    
+    def dequantize(self, x):
+        return self.indices_to_codes(x)
 
     def forward(
         self,
         x,
         inv_temperature = 100.,
-        return_loss_breakdown = False
+        return_loss_breakdown = False,
+        return_indices = False
     ):
         """
         einstein notation
@@ -194,7 +204,6 @@ class LFQ(Module):
         quantized = torch.where(x > 0, codebook_value, -codebook_value)
 
         # use straight-through gradients (optionally with custom activation fn) if training
-
         if self.training:
             x = self.activation(x)
             x = x + (quantized - x).detach()
@@ -205,7 +214,8 @@ class LFQ(Module):
 
         # self.mask is the base number of each bit
         indices = reduce((x > 0).int() * self.mask.int(), 'b n c d -> b n c', 'sum')
-
+        if return_indices:
+            return indices
         # entropy aux loss
 
         if self.training:
